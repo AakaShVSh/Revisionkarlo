@@ -63,68 +63,68 @@ router.post("/signin", async (req, res) => {
 });
 
 router.post("/forgot-password", async (req, res) => {
-  const { Email } = req.body;
   try {
-    // if (email == "" && phone == null) {
-    //   console.log("emaildfgfdgdfgdf");
-    //   return res.send("Email or Phone number is required");
-    // }
-    // if (phone != null && email == null) {
-    //   const userPhone = await User.findOne({ phone });
-    //   if (!userPhone) {
-    //     console.log("number");
-    //     return res.status(400).send({ message: "number is not register" });
-    //   }
-    //   return res.status(200).send({
-    //     Status: "OTP on number sent successfully",
-    //     // Otp: randomOtp,
-    //     method: "phone",
-    //   });
-    // }
-    // if (phone == null && email != null) {
-      const userEmail = await User.findOne({ Email });
-      if (!userEmail) {
-        console.log("email");
-        return res.send({ message: "email is not register" });
-      }
-      const randomOtp = Math.floor(Math.random() * 9000 + 1000);
-      const request = mailjet.post("send", { version: "v3.1" }).request({
-        Messages: [
-          {
-            From: {
-              Email: "akvish052@gmail.com",
-              Name: "Revision Karle",
-            },
-            To: [
-              {
-                Email: Email,
-                Name: "aakash",
-              },
-            ],
-            Subject: "OTP for Password Reset",
-            TextPart: `Dear user do not send this OTP to anyone. Your Otp is ${randomOtp}`,
-            HTMLPart: `<h3>Dear user do not send this OTP to anyone. Your Otp is <b>${randomOtp}<b/><h3/>`,
+    const { Email } = req.body;
+
+    // ✅ Validate input
+    if (!Email) {
+      return res.status(400).send({ message: "Email is required" });
+    }
+
+    // ✅ Check user
+    const userEmail = await User.findOne({ Email });
+
+    if (!userEmail) {
+      return res.status(404).send({ message: "Email is not registered" });
+    }
+
+    // ✅ Generate OTP
+    const randomOtp = Math.floor(1000 + Math.random() * 9000);
+
+    // ✅ Send email using Mailjet
+    const request = await mailjet.post("send", { version: "v3.1" }).request({
+      Messages: [
+        {
+          From: {
+            Email: "akvish052@gmail.com",
+            Name: "Revision Karlo",
           },
-        ],
-      });
-      request
-        .then((result) => {
-          console.log(result);
-          return res.status(200).send({
-            Status: "Email sended successfully",
-            user:userEmail,
-            Otp: randomOtp,
-            method: "email",
-          });
-        })
-        .catch((err) => {
-          console.log(err);
-          return res.status(400).send({ "Sending Email failed": err });
-        });
-    // }
+          To: [
+            {
+              Email: Email,
+              Name: userEmail.name || "User",
+            },
+          ],
+          Subject: "OTP for Password Reset",
+          TextPart: `Your OTP for password reset is ${randomOtp}. Do not share it with anyone.`,
+          HTMLPart: `<h3>Your OTP for password reset is <b>${randomOtp}</b></h3>`,
+        },
+      ],
+    });
+
+    // ✅ Log safe response
+    console.log("Mailjet response:", request.body);
+
+    // ⚠️ In production: store OTP in DB with expiry
+    // await OTP.create({ userId: userEmail._id, otp: randomOtp, expiresAt: Date.now() + 10*60*1000 })
+
+    return res.status(200).send({
+      status: "OTP sent successfully",
+      method: "email",
+      // ⚠️ REMOVE OTP in production
+      otp: randomOtp,
+      user: {
+        id: userEmail._id,
+        email: userEmail.Email,
+      },
+    });
   } catch (error) {
-         console.log(error);
-    return res.status(400).send({ error: error.message });
+    console.error("Forgot password error:", error.message);
+
+    return res.status(500).send({
+      message: "Something went wrong",
+      error: error.message,
+    });
   }
 });
 
