@@ -349,16 +349,38 @@ import {
   Grid,
   GridItem,
   Input,
-  Select,
-  Spacer,
   Text,
   useDisclosure,
 } from "@chakra-ui/react";
 import { useEffect, useState } from "react";
 import { MdAddBox } from "react-icons/md";
 import { AiOutlineSelect } from "react-icons/ai";
-import { getLocalStorage, setLocalStorage } from "../helpers/localStorage";
 
+/**
+ * CollapseEx — "Create Direct Test" toolbar
+ *
+ * Props
+ * ─────
+ * category     : all question docs for the current subject (from API, no localStorage)
+ * MathSubject  : currently selected topic string
+ * currentSub   : currently selected subject key (e.g. "math")
+ * maketest     : (questions[], fullscreen, title) => void
+ * persistTest  : async (testobj) => void  — saves test to backend
+ * setlist      : (topicNames[]) => void   — tells parent which topics are selected
+ * setnoOfQus   : (n) => void
+ * setq         : () => void               — parent's custom-test builder (used from MathQuestionlist)
+ * setname      : (name) => void
+ * findtotal    : () => void
+ * settotalques : (bool) => void
+ * totalques    : bool
+ * settotaltestno: () => void
+ * seth         : state setter
+ * h            : selected doc indexes
+ * selectallstate, setselectallstate
+ * check, setcheck
+ * directTest, setdirecttest
+ * sum
+ */
 function CollapseEx({
   setlist,
   setselectallstate,
@@ -381,6 +403,7 @@ function CollapseEx({
   setname,
   sum,
   currentSub,
+  persistTest, // NEW — async fn from parent to persist test to backend
 }) {
   const { isOpen: isOpen1, onToggle: onToggle1 } = useDisclosure();
   const [totalqus, setTotalQus] = useState(0);
@@ -391,212 +414,132 @@ function CollapseEx({
   const [noqustogive, setnoqustogive] = useState(null);
   const [testName, setTestName] = useState("Test 1");
 
-  const [TestSubject, setTestSubject] = useState("");
-
   useEffect(() => {
     setlist(arr);
-    setTestSubject(getLocalStorage("Subject"));
     setnoOfQus(totalqus);
   }, [arr, setlist, setnoOfQus, totalqus]);
 
+  // ── Helpers ──────────────────────────────────────────────────────────────
+
+  /** Filter docs matching MathSubject, then divide questions round-robin across sections */
   const getdata = () => {
-    if (!category?.length) return;
-    if (!MathSubject) {
-      console.warn("MathSubject is not defined.");
+    if (!category?.length || !MathSubject) return;
+
+    const matched = directTest.filter((e) => e.topic === MathSubject);
+    if (!matched.length) {
+      console.warn("No selected docs for topic:", MathSubject);
       return;
     }
-    if (directTest.length < 0) {
-      console.log(directTest.length, directTest);
-      alert("should be smaller");
-      return;
-    }
-    console.log(MathSubject, directTest);
 
-    const res = directTest?.filter((e) => e.topic === MathSubject);
-    if (!res.length) {
-      console.warn("No matching category found.");
-      return;
-    }
-    console.log(res);
-
-    resdev(res);
-    resdevi(res);
-
-    console.log(
-      "Filtered Questions:",
-      res,
-      "Selected Subject:",
-      MathSubject,
-      "First Category Topic:",
-      category?.[0]?.topic,
-    );
+    resdev(matched);
+    resdevi(matched);
   };
 
-  const resdevi = (res) => {
-    if (!res?.length) {
-      console.warn("No questions found for this subject.");
-      return;
+  const resdevi = (matched) => {
+    if (!matched?.length || !noqustogive) return;
+
+    const j = noqustogive;
+    const totalSections = matched.length;
+    const base = Math.floor(j / totalSections);
+    const extra = j % totalSections;
+
+    // Persist last-read position per topic so repeated test calls cycle through questions
+    const storedIndexes = JSON.parse(
+      sessionStorage.getItem("lastIndexes") ?? "{}",
+    );
+    const newIndexes = {};
+    let selected = [];
+
+    for (let i = 0; i < totalSections; i++) {
+      if (!Array.isArray(matched[i].question)) continue;
+      const prev = storedIndexes[matched[i].topic] ?? 0;
+      const count = base + (i < extra ? 1 : 0);
+      const sliced = matched[i].question.slice(prev, prev + count);
+      newIndexes[matched[i].topic] = prev + count;
+      selected = [...selected, ...sliced];
     }
 
-    let j = noqustogive;
-    console.log(j, noqustogive);
-
-    let totalCategories = res.length;
-    let baseCount = Math.floor(j / totalCategories);
-    let extra = j % totalCategories;
-
-    let dividedQuestions = new Set();
-    let storedIndexes = JSON.parse(localStorage.getItem("lastIndexes")) || {};
-    let newIndexes = {};
-
-    for (let i = 0; i < totalCategories; i++) {
-      if (!Array.isArray(res[i].question)) {
-        console.warn(`Skipping invalid question data at index ${i}`);
-        continue;
+    // Backfill if needed (wrap around)
+    let idx = 0;
+    while (selected.length < j) {
+      const src = matched[idx % totalSections].question;
+      for (const q of src) {
+        if (selected.length >= j) break;
+        if (!selected.includes(q)) selected.push(q);
       }
-
-      let prevIndex = storedIndexes[res[i].topic] || 0;
-      let count = baseCount + (i < extra ? 1 : 0);
-
-      let slicedQuestions = res[i].question.slice(prevIndex, prevIndex + count);
-      newIndexes[res[i].topic] = prevIndex + count;
-
-      slicedQuestions.forEach((q) => dividedQuestions.add(q));
+      idx++;
     }
 
-    dividedQuestions = [...dividedQuestions];
+    sessionStorage.setItem("lastIndexes", JSON.stringify(newIndexes));
+    settotalquslength(selected.length);
 
-    let index = 0;
-    while (dividedQuestions.length < j) {
-      let categoryIndex = index % totalCategories;
-      let extraQuestions = res[categoryIndex].question;
-
-      for (let q of extraQuestions) {
-        if (dividedQuestions.length >= j) break;
-        if (!dividedQuestions.includes(q)) {
-          dividedQuestions.push(q);
-        }
-      }
-      index++;
-    }
-
-    localStorage.setItem("lastIndexes", JSON.stringify(newIndexes));
-
-    settotalquslength(dividedQuestions.length);
-
-    if (dividedQuestions.length > 0) {
-      // Save the list of selected topics for timer calculation
-      const selectedTopics = res.map((r) => r.topic);
-      setLocalStorage("selectedTopicsList", selectedTopics);
-
-      console.log("✅ Saved selectedTopicsList for timer:", selectedTopics);
-
-      // Save test metadata before starting the test
-      saveTestMetadata(dividedQuestions, selectedTopics);
-      maketest(dividedQuestions, true, testName);
+    if (selected.length > 0) {
+      _startTest(
+        selected,
+        matched.map((r) => r.topic),
+      );
     }
   };
 
   const directTestdatacollect = () => {
-    console.log(category);
-    if (!category?.length) return;
-    if (!MathSubject) {
-      console.warn("MathSubject is not defined.");
-      return;
-    }
-    console.log(MathSubject);
+    if (!category?.length || !MathSubject) return;
+    const matched = category.filter((e) => e.topic === MathSubject);
+    if (!matched.length) return;
 
-    const res = category?.filter((e) => e.topic === MathSubject);
-    if (!res.length) {
-      console.warn("No matching category found.");
-      return;
-    }
-    console.log("============================", res);
-
-    resdev(res);
-    directTestallSelectData(res);
+    resdev(matched);
+    directTestallSelectData(matched);
   };
 
-  const directTestallSelectData = (res) => {
-    if (!res?.length) {
-      console.warn("No questions found for this subject.");
-      return;
-    }
+  const directTestallSelectData = (matched) => {
+    if (!matched?.length || !noqustogive) return;
+    const j = noqustogive;
 
-    let j = noqustogive;
-    console.log("+++++++++++++++++++++++++++++++++++++++++++", j, noqustogive);
-
-    let dividedQuestions = new Set();
-
-    res.forEach((category) => {
-      if (!Array.isArray(category.question)) {
-        console.warn(`Skipping invalid question data:`, category);
-        return;
-      }
-
-      category.question.forEach((q) => dividedQuestions.add(q));
-    });
-
-    let uniqueQuestions = [...dividedQuestions];
-
-    let finalQuestions = [];
-    let usedIndexes = new Set();
-
-    while (finalQuestions.length < j && uniqueQuestions.length > 0) {
-      let randomIndex = Math.floor(Math.random() * uniqueQuestions.length);
-
-      if (!usedIndexes.has(randomIndex)) {
-        usedIndexes.add(randomIndex);
-        finalQuestions.push(uniqueQuestions[randomIndex]);
-      }
-
-      if (usedIndexes.size === uniqueQuestions.length) {
-        usedIndexes.clear();
-      }
-    }
-
-    settotalquslength(finalQuestions.length);
-    console.log(
-      "Final Questions:",
-      finalQuestions,
-      "Total Given:",
-      finalQuestions.length,
+    // Pool all questions, then pick randomly without repeating
+    const pool = matched.flatMap((c) =>
+      Array.isArray(c.question) ? c.question : [],
     );
+    const used = new Set();
+    const final = [];
 
-    if (finalQuestions.length > 0) {
-      // Save single topic for select all
-      const selectedTopics = [MathSubject];
-      setLocalStorage("selectedTopicsList", selectedTopics);
+    while (final.length < j && final.length < pool.length) {
+      const ri = Math.floor(Math.random() * pool.length);
+      if (!used.has(ri)) {
+        used.add(ri);
+        final.push(pool[ri]);
+      }
+      // Reset if we've seen everything (cycle)
+      if (used.size === pool.length) used.clear();
+    }
 
-      console.log("✅ Saved selectedTopicsList (Select All):", selectedTopics);
+    settotalquslength(final.length);
 
-      // Save test metadata before starting the test
-      saveTestMetadata(finalQuestions, selectedTopics);
+    if (final.length > 0) {
       setcheck(true);
-      maketest(finalQuestions, true, testName);
+      _startTest(final, [MathSubject]);
     }
   };
 
-  // Save test metadata to localStorage
-  const saveTestMetadata = (questions, selectedTopics = []) => {
+  /** Persist test metadata to backend then navigate */
+  const _startTest = async (questions, selectedTopics) => {
     const testobj = {
-      testName: testName,
+      testName,
       noOfQus: questions.length,
-      questions: questions,
+      questions,
       createdAt: new Date().toISOString(),
       category: currentSub,
       subcategory: MathSubject,
       quslist: [],
-      selectedTopics: selectedTopics, // Save selected topics
+      selectedTopics,
     };
 
-    const existingTests = getLocalStorage("allTypeWiseTests") || [];
-    const updatedTests = [...existingTests, testobj];
+    if (typeof persistTest === "function") {
+      await persistTest(testobj);
+    }
 
-    setLocalStorage("allTypeWiseTests", updatedTests);
-    console.log("✅ Test metadata saved:", testobj);
+    maketest(questions, true, testName);
   };
 
+  // ── Render ───────────────────────────────────────────────────────────────
   return (
     <>
       <Box display="flex" gap={3} mt={2} flexWrap="wrap">
@@ -614,21 +557,17 @@ function CollapseEx({
         >
           Create Direct Test <MdAddBox />
         </Button>
+
         <Button
           gap={1}
           onClick={() => {
             if (!category?.length || !MathSubject) return;
-
-            const selectedCategory = category.filter(
-              (e) => e.topic === MathSubject,
-            );
-
-            const totalQuestions = selectedCategory.reduce(
-              (acc, curr) => acc + (curr.question?.length || 0),
+            const matched = category.filter((e) => e.topic === MathSubject);
+            const total = matched.reduce(
+              (acc, c) => acc + (c.question?.length ?? 0),
               0,
             );
-
-            setnoqustogive(totalQuestions);
+            setnoqustogive(total);
             setselectallstate(!selectallstate);
           }}
           size={{ base: "sm", md: "md" }}
@@ -637,7 +576,7 @@ function CollapseEx({
         </Button>
       </Box>
 
-      {/* Direct Test Section */}
+      {/* Direct Test config panel */}
       <Collapse in={isOpen1} animateOpacity>
         <Box p={4} mt={3} bg="white" rounded="md" shadow="md">
           <Grid templateColumns="repeat(1, 1fr)" gap={4}>
@@ -647,11 +586,15 @@ function CollapseEx({
               </Text>
               <Input
                 value={testName}
-                onChange={(e) => setTestName(e.target.value)}
+                onChange={(e) => {
+                  setTestName(e.target.value);
+                  setname(e.target.value);
+                }}
                 placeholder="Enter test name"
                 size="sm"
               />
             </GridItem>
+
             <GridItem>
               <Text mb={1} fontSize="sm" fontWeight="500">
                 Number of Questions
@@ -659,7 +602,7 @@ function CollapseEx({
               <Input
                 type="number"
                 onChange={(e) => setnoqustogive(Number(e.target.value))}
-                value={noqustogive || ""}
+                value={noqustogive ?? ""}
                 placeholder={`Should be a multiple of ${res?.length || "N"}`}
                 size="sm"
               />
@@ -669,25 +612,25 @@ function CollapseEx({
               <Button
                 colorScheme="red"
                 variant="outline"
-                onClick={(e) => {
+                size="sm"
+                onClick={() => {
                   setcheck(false);
                   onToggle1();
-                  settotaltestno(e.target.value);
+                  settotaltestno();
                   settotalques(false);
                   setState(false);
                 }}
-                size="sm"
               >
                 Discard
               </Button>
               <Button
                 colorScheme="green"
                 variant="outline"
+                size="sm"
                 onClick={() => {
                   if (directTest.length > 0 && totalquslength >= noqustogive) {
                     onToggle1();
                   }
-
                   settotalques(false);
                   setState(false);
                   if (selectallstate) {
@@ -696,7 +639,6 @@ function CollapseEx({
                     getdata();
                   }
                 }}
-                size="sm"
               >
                 Create
               </Button>

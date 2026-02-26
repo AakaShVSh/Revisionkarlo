@@ -10,9 +10,9 @@ import {
 import axios from "axios";
 import React, { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { forgotPasswordApi } from "../redux/forgotPassword/forgotPassword.ActionType";
+// import { forgotPasswordApi } from "../redux/forgotPassword/forgotPassword.ActionType";
 import { useNavigate } from "react-router-dom";
-import { changePasswordApi } from "../redux/changePassword/changePassword.ActionType";
+// import { changePasswordApi } from "../redux/changePassword/changePassword.ActionType";
 
 const ForgotPassword = ({ setMessage, message }) => {
   const dispatch = useDispatch();
@@ -38,7 +38,7 @@ const ForgotPassword = ({ setMessage, message }) => {
       UserEmail.Email !== "@gmail.com"
     ) {
       if (forgotPasswordOtp === 0) {
-        dispatch(forgotPasswordApi(UserEmail, forgotPasswordUser));
+        // dispatch(forgotPasswordApi(UserEmail, forgotPasswordUser));
       }
       if (
         forgotPasswordSuccess &&
@@ -47,7 +47,7 @@ const ForgotPassword = ({ setMessage, message }) => {
       ) {
         setChangePassword(true);
         if (password.Password !== null) {
-          dispatch(changePasswordApi(password, forgotPasswordUser));
+          // dispatch(changePasswordApi(password, forgotPasswordUser));
        
         }
       }

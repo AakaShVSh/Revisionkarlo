@@ -1728,7 +1728,6 @@
 // };
 
 // export default MathQuestionlist;
-
 import {
   Box,
   Divider,
@@ -1764,10 +1763,11 @@ import {
   TabPanels,
   Tab,
   TabPanel,
+  Alert,
+  AlertIcon,
 } from "@chakra-ui/react";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { getLocalStorage, setLocalStorage } from "../helpers/localStorage";
 import CollapseEx from "./CreateTest";
 import { GrCheckboxSelected } from "react-icons/gr";
 import {
@@ -1789,487 +1789,264 @@ import {
   getSubcategoryStats,
 } from "../helpers/testProgressHelper";
 import UserTestDataList from "./UserTestDataList";
+import {
+  fetchQuestions,
+  fetchTopicsForSubject,
+  fetchUserTestData,
+  postUserTestResult,
+  updateUserTestData,
+} from "../apis/question";
+
+/**
+ * Human-readable display names for subject keys returned by the API.
+ * Keys are lowercased to match what the backend stores.
+ */
+const SUBJECT_DISPLAY_NAMES = {
+  math: "Mathematics",
+  mathtwo: "Math Advanced",
+  english: "English",
+  gs: "General Studies",
+  vocabulary: "Vocabulary",
+  reasoning: "Reasoning",
+};
+
+const getCategoryDisplayName = (subject) =>
+  SUBJECT_DISPLAY_NAMES[subject?.toLowerCase()] ?? subject ?? "";
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
 
 const MathQuestionlist = ({
-  category,
+  category: categoryProp, // questions passed down from parent (may be stale / empty)
   chooseSub,
   currentSub: currentSubProp,
   setQuestions,
   handleFullScreen,
   settestTitle,
 }) => {
+  // ── Loading states ────────────────────────────────────────────────────────
   const [isLoading, setIsLoading] = useState(true);
   const [isSubcategoryLoading, setIsSubcategoryLoading] = useState(false);
-  const [totalques, settotalques] = useState(false);
-  const [currentSub, setCurrentSub] = useState("");
-  const [MathSubject, setMathSubject] = useState("");
+  const [error, setError] = useState(null);
+
+  // ── Core data ─────────────────────────────────────────────────────────────
+  const [currentSub, setCurrentSub] = useState(currentSubProp ?? "");
+  const [MathSubject, setMathSubject] = useState(""); // selected topic/subcategory
+  const [categoryData, setCategoryData] = useState([]); // all docs for currentSub
+  const [currentTopic, setCurrentTopic] = useState([]); // ordered topic list from API
+  const [categoryCompleted, setCategoryCompleted] = useState(false);
+
+  // ── Test creation UI state ────────────────────────────────────────────────
   const [h, seth] = useState([]);
   const [selectallstate, setselectallstate] = useState(false);
   const [directTest, setdirectTest] = useState([]);
   const [check, setcheck] = useState(false);
-  const [currentTopic, setcurrentTopic] = useState([]);
-  const [dataTypeWiseTest, setdataTypeWiseTest] = useState([]);
-  const [data, setdata] = useState([]);
-  const [list, setlist] = useState([]);
-  const [totaltestno, settotaltestno] = useState(10);
   const [quslist, setquslist] = useState([]);
   const [name, setname] = useState("Test");
-  const [sum, setsum] = useState(0);
   const [noOfQus, setnoOfQus] = useState(3);
-  const [categoryCompleted, setCategoryCompleted] = useState(false);
-  const [categoryData, setCategoryData] = useState([]);
+  const [totalques, settotalques] = useState(false);
+  const [sum, setsum] = useState(0);
+
+  // ── Created / saved tests from backend ───────────────────────────────────
+  const [dataTypeWiseTest, setdataTypeWiseTest] = useState([]);
   const [selectedTest, setSelectedTest] = useState(null);
   const { isOpen, onOpen, onClose } = useDisclosure();
 
-  const [Vocabularydata] = useState([
-    "One Word Substitution",
-    "Idioms",
-    "Antonyms",
-    "Synonyms",
-    "Phrasal Verbs",
-  ]);
-  const [sscCglMathsSyllabus] = useState([
-    "Number System",
-    "L.C.M and H.C.F",
-    "Surds and Indices",
-    "Algebraic Identities",
-    "Percentage",
-    "Profit and Loss",
-    "Simple Interest",
-    "Compound Interest",
-    "Average",
-    "Ratio and Proportion",
-    "Partnership",
-    "Problems with Ages",
-    "Time and Distance",
-    "Pipe and Cistern",
-    "Mixture and Alligation",
-    "Problems based on Train, Boat, and Stream",
-    "Mensuration 2D & 3D",
-    "Coordinate Geometry",
-    "Trigonometry",
-    "Data Interpretation",
-    "General Studies",
-  ]);
-
-  const [englishTopics] = useState([
-    "Spot the Error",
-    "Reading Comprehension",
-    "Synonyms",
-    "Antonyms",
-    "Fill in the Blanks",
-    "Sentence Improvement",
-    "Spotting Errors",
-    "Para Jumbles",
-    "Idioms & Phrases",
-    "One Word Substitution",
-    "Active and Passive Voice",
-    "Direct and Indirect Speech",
-    "Cloze Test",
-    "Sentence Completion",
-    "Vocabulary",
-    "Prepositions",
-    "Articles",
-    "Tenses",
-    "Subject-Verb Agreement",
-    "Phrasal Verbs",
-  ]);
-
-  const [mathtwo] = useState([
-    "Average Wala",
-    "mathtwo",
-    "Police and Thief",
-    "Time and Distance (Meeting Wala)",
-    "Time and distance basic",
-    "Train Wala (Relative Speed)",
-  ]);
-  const [Gs] = useState(["Vedic age", "Polity", "Ancient History"]);
-  const [Reasoning] = useState([
-    "Logical Reasoning",
-    "Analytical Reasoning",
-    "Verbal Reasoning",
-    "Non-Verbal Reasoning",
-    "Blood Relations",
-    "Coding-Decoding",
-    "Puzzles",
-    "Seating Arrangement",
-    "Syllogism",
-    "Data Sufficiency",
-  ]);
   const navigate = useNavigate();
 
-  const getTopicListForCategory = (categorySub) => {
-    const hh = getLocalStorage("cat");
+  // ── Helpers ───────────────────────────────────────────────────────────────
 
-    if (categorySub === "mathtwo") {
-      return mathtwo;
-    } else if (categorySub === "Eng" && hh == null) {
-      return englishTopics;
-    } else if (categorySub === "math") {
-      return sscCglMathsSyllabus;
-    } else if (categorySub === "gs") {
-      return Gs;
-    } else if (categorySub === "vocabulary") {
-      return Vocabularydata;
-    } else if (categorySub === "Reasoning") {
-      return Reasoning;
-    }
-    return [];
-  };
+  const maketest = useCallback(
+    (qus, full, sec) => {
+      setQuestions(qus);
+      handleFullScreen(full);
+      settestTitle(sec);
+      navigate("/test");
+    },
+    [setQuestions, handleFullScreen, settestTitle, navigate],
+  );
 
+  // ── Initial data load ─────────────────────────────────────────────────────
   useEffect(() => {
-    const loadInitialData = async () => {
+    const load = async () => {
       setIsLoading(true);
-
+      setError(null);
       try {
-        const savedCurrentSub = getLocalStorage("currentCategoryView");
-        const currentCategory = savedCurrentSub || currentSubProp;
+        const subject = currentSubProp ?? "";
+        setCurrentSub(subject);
 
-        console.log("Initial Load - Setting currentSub:", currentCategory);
-        setCurrentSub(currentCategory);
+        // 1. Fetch ordered topic list from API (no hardcoded arrays)
+        const topics = subject ? await fetchTopicsForSubject(subject) : [];
+        setCurrentTopic(topics);
 
-        const savedMathSubject = getLocalStorage("currentSubcategoryView");
-
-        console.log("Loading data:", {
-          savedCurrentSub,
-          currentSubProp,
-          currentCategory,
-          savedMathSubject,
-        });
-
-        let categoryDataToUse = [];
-
-        if (category && category.length > 0) {
-          categoryDataToUse = category;
-          setLocalStorage("questiondata", category);
-          setLocalStorage("fullCategoryData_" + currentCategory, category);
-        } else {
-          const savedQuestionData = getLocalStorage("questiondata");
-          const savedFullCategoryData = getLocalStorage(
-            "fullCategoryData_" + currentCategory,
-          );
-
-          categoryDataToUse = savedFullCategoryData || savedQuestionData || [];
-
-          console.log("Restored from localStorage:", {
-            questionDataLength: savedQuestionData?.length,
-            fullCategoryDataLength: savedFullCategoryData?.length,
-            using: categoryDataToUse.length,
-          });
+        // 2. Fetch all question docs for this subject
+        let docs = [];
+        if (categoryProp && categoryProp.length > 0) {
+          docs = categoryProp;
+        } else if (subject) {
+          docs = await fetchQuestions({ subject });
         }
+        setCategoryData(docs);
 
-        setCategoryData(categoryDataToUse);
+        // 3. Fetch saved tests from backend
+        const savedTests = await fetchUserTestData().catch(() => []);
+        // Filter to tests belonging to this subject for the sidebar
+        const subjectTests = savedTests.filter(
+          (t) => t.category?.toLowerCase() === subject?.toLowerCase(),
+        );
+        setdataTypeWiseTest(subjectTests);
 
-        const topicList = getTopicListForCategory(currentCategory);
-        setcurrentTopic(topicList);
-
-        console.log("Topic list:", {
-          currentCategory,
-          topicListLength: topicList.length,
-        });
-
-        if (savedMathSubject && topicList.includes(savedMathSubject)) {
-          console.log("Restoring subcategory view:", savedMathSubject);
-          setMathSubject(savedMathSubject);
-        } else if (savedMathSubject && !topicList.includes(savedMathSubject)) {
-          console.log("Invalid subcategory, clearing:", savedMathSubject);
-          setMathSubject("");
-          localStorage.removeItem("currentSubcategoryView");
-        } else {
-          console.log("No subcategory, staying in category view");
-          setMathSubject("");
-        }
-
-        const savedTests = getLocalStorage("allTypeWiseTests");
-        if (savedTests) {
-          console.log(savedTests, "in");
-          setdataTypeWiseTest(savedTests);
-        }
-
-        const completionStatus = isCategoryCompleted(currentCategory);
-        setCategoryCompleted(completionStatus);
-
-        await new Promise((resolve) => setTimeout(resolve, 300));
-      } catch (error) {
-        console.error("Error loading data:", error);
+        // 4. Completion status (still uses progress helper — no localStorage for data)
+        setCategoryCompleted(isCategoryCompleted(subject));
+      } catch (err) {
+        console.error("Error loading question list:", err);
+        setError(err.message ?? "Failed to load data");
       } finally {
         setIsLoading(false);
       }
     };
 
-    loadInitialData();
-  }, []);
+    load();
+  }, [currentSubProp]); // re-run if parent changes the subject
 
-  useEffect(() => {
-    if (currentSub) {
-      console.log("Saving currentSub to localStorage:", currentSub);
-      setLocalStorage("currentCategoryView", currentSub);
-    }
-  }, [currentSub]);
-
+  // Keep currentSub in sync when prop changes
   useEffect(() => {
     if (currentSubProp && currentSubProp !== currentSub) {
-      console.log("Syncing currentSub from prop:", currentSubProp);
       setCurrentSub(currentSubProp);
     }
   }, [currentSubProp]);
 
+  // Sync categoryData if parent passes fresh docs
   useEffect(() => {
-    if (MathSubject) {
-      setLocalStorage("currentSubcategoryView", MathSubject);
-    } else {
-      localStorage.removeItem("currentSubcategoryView");
+    if (categoryProp && categoryProp.length > 0) {
+      setCategoryData(categoryProp);
     }
-  }, [MathSubject]);
+  }, [categoryProp]);
 
-  useEffect(() => {
-    console.log("=== Current State ===", {
-      currentSub,
-      MathSubject,
-      categoryDataLength: categoryData.length,
-      currentTopicLength: currentTopic.length,
-      savedCurrentSub: getLocalStorage("currentCategoryView"),
-      savedMathSubject: getLocalStorage("currentSubcategoryView"),
-    });
-  }, [currentSub, MathSubject, categoryData, currentTopic]);
+  // ── Subcategory (topic) selection ─────────────────────────────────────────
+  const handleSubcategoryClick = async (topic, topicIndex) => {
+    const unlocked = isSubcategoryUnlocked(currentSub, topicIndex);
+    if (!unlocked) return;
 
-  useEffect(() => {
-    if (category && category.length > 0 && currentSub) {
-      console.log(
-        "Category prop updated, length:",
-        category.length,
-        "for:",
-        currentSub,
-      );
-      setCategoryData(category);
-      setLocalStorage("questiondata", category);
-      setLocalStorage("fullCategoryData_" + currentSub, category);
-
-      const topicList = getTopicListForCategory(currentSub);
-      setcurrentTopic(topicList);
-
-      if (topicList.length > 0) {
-        setLocalStorage("topicList_" + currentSub, topicList);
-        setLocalStorage("currentTopicList_" + currentSub, topicList);
-      }
-
-      const subcategoryData = {};
-      topicList.forEach((topic) => {
-        const testsForTopic = category.filter((item) => item.topic === topic);
-        if (testsForTopic.length > 0) {
-          subcategoryData[topic] = testsForTopic;
-        }
-      });
-      setLocalStorage("subcategoryData_" + currentSub, subcategoryData);
-
-      setCategoryCompleted(isCategoryCompleted(currentSub));
-    }
-  }, [category, currentSub]);
-
-  useEffect(() => {
-    const savedTests = getLocalStorage("allTypeWiseTests");
-    if (savedTests) {
-      setdataTypeWiseTest(savedTests);
-    }
-  }, [name]);
-
-  const maketest = (qus, full, sec) => {
-    setQuestions(qus);
-    handleFullScreen(full);
-    settestTitle(sec);
-    navigate("/test");
+    setIsSubcategoryLoading(true);
+    setMathSubject(topic);
+    setIsSubcategoryLoading(false);
   };
 
-  const getCategoryDisplayName = () => {
-    const categoryNames = {
-      Eng: "English",
-      math: "Mathematics",
-      gs: "General Studies",
-      vocabulary: "Vocabulary",
-      mathtwo: "Math Advanced",
-      Reasoning: "Reasoning",
-    };
-    return categoryNames[currentSub] || currentSub;
+  // ── Test item click ───────────────────────────────────────────────────────
+  const handleTestClick = (testData, testIndex) => {
+    const unlocked = isTestUnlocked(currentSub, MathSubject, testIndex);
+    if (unlocked) {
+      maketest(testData.question, true, testData.section);
+    }
   };
 
-  const updateCounter = (index, operation) => {
-    setquslist((prevQuslist) => {
-      let newQuslist = [...prevQuslist];
-      const currentItem = newQuslist[index];
-      const updatedItem = {
-        ...currentItem,
-        count:
-          operation === "increment"
-            ? currentItem.count + 1
-            : Math.max(1, currentItem.count - 1),
-      };
-
-      newQuslist[index] = updatedItem;
-
-      const totalQuestions = newQuslist.reduce(
-        (acc, item) => acc + item.count,
-        0,
-      );
-
-      if (totalQuestions > noOfQus) {
-        let diff = totalQuestions - noOfQus;
-        let adjustmentIndex = 0;
-
-        while (diff > 0 && adjustmentIndex < newQuslist.length) {
-          if (newQuslist[adjustmentIndex].count > 1) {
-            newQuslist[adjustmentIndex].count -= 1;
-            diff--;
-          }
-          adjustmentIndex++;
-        }
-      }
-
-      return newQuslist;
-    });
-  };
-
-  const [devidedqus, setdevidedqus] = useState();
-  const [totalQuestions, setTotalQuestions] = useState(0);
-  const [allquestotaltaketest, setallquestotaltaketest] = useState([]);
-
+  // ── Question count distribution for findtotal ─────────────────────────────
   const findtotal = () => {
-    const dataToUse =
-      categoryData.length > 0
-        ? categoryData
-        : getLocalStorage("questiondata") || [];
+    const docs = categoryData.filter((e) => e.topic === MathSubject);
+    const total = docs.reduce((s, e) => s + e.question.length, 0);
+    const sections = docs.length;
+    if (sections === 0) return;
 
-    if (!dataToUse || !Array.isArray(dataToUse)) {
-      console.error("Category data is missing or invalid.");
-      return;
-    }
-
-    let filtered = dataToUse.filter((e) => e.topic === MathSubject);
-    let total = filtered.reduce((sum, e) => sum + e.question.length, 0);
-    let totalSections = filtered.length;
-
-    setTotalQuestions(total);
-
-    if (totalSections === 0) {
-      setdevidedqus([]);
-      return;
-    }
-
-    let baseCount = Math.floor(total / totalSections);
-    let extra = total % totalSections;
-    let distribution = filtered.map((e) =>
-      Math.min(e.question.length, baseCount),
+    const base = Math.floor(total / sections);
+    const extra = total % sections;
+    const distribution = docs.map((e, i) =>
+      Math.min(e.question.length, base + (i < extra ? 1 : 0)),
     );
 
-    for (let i = 0; i < extra; i++) {
-      if (distribution[i] < filtered[i].question.length) {
-        distribution[i] += 1;
-      }
-    }
-    let newState = { ...allquestotaltaketest };
-
-    setdevidedqus(distribution);
-
-    filtered.forEach((e, i) => {
-      e.question.slice(0, distribution[i]).forEach((item, index) => {
-        newState[`question_${i}_${index}`] = item;
+    let newState = {};
+    docs.forEach((e, i) => {
+      e.question.slice(0, distribution[i]).forEach((item, j) => {
+        newState[`question_${i}_${j}`] = item;
       });
     });
 
-    setallquestotaltaketest(newState);
-
-    let result = filtered.map((e, i) => ({
-      section: e.topic,
-      totalQuestions: e.question.length,
-      assignedQuestions: distribution[i],
-    }));
+    settotalques(true);
   };
 
+  // ── Build test object and persist to backend ──────────────────────────────
+  const persistTest = async (testobj) => {
+    try {
+      const saved = await postUserTestResult(testobj);
+      // Refresh sidebar tests
+      const all = await fetchUserTestData().catch(() => []);
+      const subjectTests = all.filter(
+        (t) => t.category?.toLowerCase() === currentSub?.toLowerCase(),
+      );
+      setdataTypeWiseTest(subjectTests);
+      return saved;
+    } catch (err) {
+      console.error("Failed to persist test:", err);
+    }
+  };
+
+  // ── Custom test creation (from CollapseEx) ────────────────────────────────
   const setq = async () => {
-    const questionData = getLocalStorage("questiondata");
-    const p = questionData.filter((e) => list.includes(e.topic));
+    const p = categoryData.filter((e) =>
+      quslist.map((q) => q.qusdata).includes(e.topic),
+    );
     let dd = [];
     quslist.forEach((e, i) => {
-      const g = p[i].question.slice(0, e.count);
+      const g = p[i]?.question.slice(0, e.count) ?? [];
       dd = [...dd, ...g];
     });
     const testobj = {
       testName: name,
-      quslist: quslist,
-      noOfQus: noOfQus,
+      quslist,
+      noOfQus,
       questions: dd,
       createdAt: new Date().toISOString(),
       category: currentSub,
       subcategory: MathSubject,
     };
-    const f = getLocalStorage("allTypeWiseTests");
-
-    if (f != null) {
-      setLocalStorage("allTypeWiseTests", [...f, testobj]);
-      setdataTypeWiseTest([...f, testobj]);
-    } else {
-      setLocalStorage("allTypeWiseTests", [testobj]);
-      setdataTypeWiseTest([testobj]);
-    }
-
+    await persistTest(testobj);
     maketest(dd, true, "Test 1");
   };
 
+  // ── quslist rebuilds when list/noOfQus change ─────────────────────────────
   useEffect(() => {
-    if (list.length > 0) {
-      const totalQuestions = list.length;
-      const baseCount = Math.floor(noOfQus / totalQuestions);
-      const remainder = noOfQus % totalQuestions;
+    // This state is maintained inside CollapseEx via setlist callback
+    // but we keep quslist here for the counter UI below
+  }, [name]);
 
-      const updatedQuslist = list.map((item, index) => ({
-        count: index === 0 ? baseCount + remainder : baseCount,
-        qusdata: item,
-      }));
+  const updateCounter = (index, operation) => {
+    setquslist((prev) => {
+      const next = [...prev];
+      next[index] = {
+        ...next[index],
+        count:
+          operation === "increment"
+            ? next[index].count + 1
+            : Math.max(1, next[index].count - 1),
+      };
 
-      setquslist(updatedQuslist);
-    }
-  }, [list, noOfQus]);
-
-  const handleTestClick = (testData, testIndex) => {
-    const unlocked = isTestUnlocked(currentSub, MathSubject, testIndex);
-
-    if (unlocked) {
-      setLocalStorage("currentTestIndex", testIndex);
-      setLocalStorage("currentSubcategory", MathSubject);
-      setLocalStorage("currentCategory", currentSub);
-      maketest(testData.question, true, testData.section);
-    }
+      const total = next.reduce((a, x) => a + x.count, 0);
+      if (total > noOfQus) {
+        let diff = total - noOfQus;
+        let adj = 0;
+        while (diff > 0 && adj < next.length) {
+          if (next[adj].count > 1) {
+            next[adj].count--;
+            diff--;
+          }
+          adj++;
+        }
+      }
+      return next;
+    });
   };
 
-  const handleSubcategoryClick = async (topic, topicIndex) => {
-    const unlocked = isSubcategoryUnlocked(currentSub, topicIndex);
-
-    if (unlocked) {
-      setIsSubcategoryLoading(true);
-      await new Promise((resolve) => setTimeout(resolve, 600));
-      setMathSubject(topic);
-      setIsSubcategoryLoading(false);
-    }
-  };
-
+  // ── Subcategory completion helper ─────────────────────────────────────────
   const getSubcategoryCompletionStatus = (subcategory) => {
-    const dataToUse =
-      categoryData.length > 0
-        ? categoryData
-        : getLocalStorage("questiondata") || [];
-    const tests = dataToUse.filter((e) => e.topic === subcategory);
-    if (tests.length === 0) return false;
-
+    const tests = categoryData.filter((e) => e.topic === subcategory);
+    if (!tests.length) return false;
     return isSubcategoryCompleted(currentSub, subcategory, tests.length);
   };
 
-  const handleCreatedTestClick = (test, index) => {
-    const testResults = getLocalStorage(`testResult_${index}`) || {};
-
-    setSelectedTest({
-      ...test,
-      index: index,
-      results: testResults,
-    });
+  // ── Created test modal ────────────────────────────────────────────────────
+  const handleCreatedTestClick = (test) => {
+    setSelectedTest(test);
     onOpen();
   };
 
@@ -2281,191 +2058,118 @@ const MathQuestionlist = ({
   };
 
   const getTestStatistics = (test) => {
-    if (!test.results || !test.results.score) {
+    if (!test?.results?.score) {
       return {
         attempted: 0,
         correct: 0,
         incorrect: 0,
-        skipped: test.noOfQus || 0,
+        skipped: test?.noOfQus ?? 0,
         score: 0,
         percentage: 0,
       };
     }
-
-    const totalQuestions = test.noOfQus || test.questions?.length || 0;
-    const correctAnswers = test.results.correctAnswers || 0;
-    const incorrectAnswers = test.results.incorrectAnswers || 0;
-    const attempted = correctAnswers + incorrectAnswers;
-    const skipped = totalQuestions - attempted;
-    const percentage =
-      totalQuestions > 0
-        ? Math.round((correctAnswers / totalQuestions) * 100)
-        : 0;
-
+    const total = test.noOfQus || test.questions?.length || 0;
+    const correct = test.results.correctAnswers ?? 0;
+    const incorrect = test.results.incorrectAnswers ?? 0;
     return {
-      attempted,
-      correct: correctAnswers,
-      incorrect: incorrectAnswers,
-      skipped,
-      score: test.results.score || 0,
-      percentage,
+      attempted: correct + incorrect,
+      correct,
+      incorrect,
+      skipped: total - correct - incorrect,
+      score: test.results.score ?? 0,
+      percentage: total > 0 ? Math.round((correct / total) * 100) : 0,
     };
   };
 
-  if (isLoading) {
-    return (
-      <Box
-        minH="100vh"
-        display="flex"
-        alignItems="center"
-        justifyContent="center"
-        bg="white"
-      >
-        <Flex direction="column" align="center" gap={6}>
-          <Box position="relative">
-            <Spinner
-              thickness="4px"
-              speed="0.65s"
-              emptyColor="gray.200"
-              color="#667eea"
-              size="xl"
-              w="80px"
-              h="80px"
-            />
-            <Box
-              position="absolute"
-              top="50%"
-              left="50%"
-              transform="translate(-50%, -50%)"
-            >
-              <FaBook size={32} color="#667eea" />
-            </Box>
+  // ── Spinner UI (shared) ───────────────────────────────────────────────────
+  const LoadingScreen = ({
+    message = "Loading...",
+    sub = "Please wait...",
+  }) => (
+    <Box
+      minH="100vh"
+      display="flex"
+      alignItems="center"
+      justifyContent="center"
+      bg="white"
+    >
+      <Flex direction="column" align="center" gap={6}>
+        <Box position="relative">
+          <Spinner
+            thickness="4px"
+            speed="0.65s"
+            emptyColor="gray.200"
+            color="#667eea"
+            size="xl"
+            w="80px"
+            h="80px"
+          />
+          <Box
+            position="absolute"
+            top="50%"
+            left="50%"
+            transform="translate(-50%, -50%)"
+          >
+            <FaBook size={32} color="#667eea" />
           </Box>
-
-          <Flex direction="column" align="center" gap={2}>
-            <Text
-              color="#2d3748"
-              fontSize="24px"
-              fontWeight="700"
-              letterSpacing="0.5px"
-            >
-              Loading {getCategoryDisplayName()}
-            </Text>
-            <Text color="#718096" fontSize="14px" fontWeight="400">
-              Please wait...
-            </Text>
-          </Flex>
-
-          <Flex gap={2}>
-            {[0, 1, 2].map((i) => (
-              <Box
-                key={i}
-                w="10px"
-                h="10px"
-                borderRadius="full"
-                bg="#667eea"
-                animation={`bounce 1.4s infinite ease-in-out`}
-                style={{ animationDelay: `${i * 0.16}s` }}
-              />
-            ))}
-          </Flex>
+        </Box>
+        <Flex direction="column" align="center" gap={2}>
+          <Text
+            color="#2d3748"
+            fontSize="24px"
+            fontWeight="700"
+            letterSpacing="0.5px"
+          >
+            {message}
+          </Text>
+          <Text color="#718096" fontSize="14px">
+            {sub}
+          </Text>
         </Flex>
+        <Flex gap={2}>
+          {[0, 1, 2].map((i) => (
+            <Box
+              key={i}
+              w="10px"
+              h="10px"
+              borderRadius="full"
+              bg="#667eea"
+              animation="bounce 1.4s infinite ease-in-out"
+              style={{ animationDelay: `${i * 0.16}s` }}
+            />
+          ))}
+        </Flex>
+      </Flex>
+      <style>{`@keyframes bounce{0%,80%,100%{transform:scale(0);opacity:.5}40%{transform:scale(1);opacity:1}}`}</style>
+    </Box>
+  );
 
-        <style>
-          {`
-            @keyframes bounce {
-              0%, 80%, 100% { 
-                transform: scale(0);
-                opacity: 0.5;
-              }
-              40% { 
-                transform: scale(1);
-                opacity: 1;
-              }
-            }
-          `}
-        </style>
+  if (isLoading)
+    return (
+      <LoadingScreen
+        message={`Loading ${getCategoryDisplayName(currentSub)}`}
+      />
+    );
+  if (isSubcategoryLoading)
+    return (
+      <LoadingScreen
+        message="Loading Tests"
+        sub="Preparing your questions..."
+      />
+    );
+
+  if (error) {
+    return (
+      <Box p={8}>
+        <Alert status="error" borderRadius="8px">
+          <AlertIcon />
+          {error}
+        </Alert>
       </Box>
     );
   }
 
-  if (isSubcategoryLoading) {
-    return (
-      <Box
-        minH="100vh"
-        display="flex"
-        alignItems="center"
-        justifyContent="center"
-        bg="white"
-      >
-        <Flex direction="column" align="center" gap={6}>
-          <Box position="relative">
-            <Spinner
-              thickness="4px"
-              speed="0.65s"
-              emptyColor="gray.200"
-              color="#667eea"
-              size="xl"
-              w="80px"
-              h="80px"
-            />
-            <Box
-              position="absolute"
-              top="50%"
-              left="50%"
-              transform="translate(-50%, -50%)"
-            >
-              <FaBook size={32} color="#667eea" />
-            </Box>
-          </Box>
-
-          <Flex direction="column" align="center" gap={2}>
-            <Text
-              color="#2d3748"
-              fontSize="24px"
-              fontWeight="700"
-              letterSpacing="0.5px"
-            >
-              Loading Tests
-            </Text>
-            <Text color="#718096" fontSize="14px" fontWeight="400">
-              Preparing your questions...
-            </Text>
-          </Flex>
-
-          <Flex gap={2}>
-            {[0, 1, 2].map((i) => (
-              <Box
-                key={i}
-                w="10px"
-                h="10px"
-                borderRadius="full"
-                bg="#667eea"
-                animation={`bounce 1.4s infinite ease-in-out`}
-                style={{ animationDelay: `${i * 0.16}s` }}
-              />
-            ))}
-          </Flex>
-        </Flex>
-
-        <style>
-          {`
-            @keyframes bounce {
-              0%, 80%, 100% { 
-                transform: scale(0);
-                opacity: 0.5;
-              }
-              40% { 
-                transform: scale(1);
-                opacity: 1;
-              }
-            }
-          `}
-        </style>
-      </Box>
-    );
-  }
-
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <Box minH="100vh" bg="#f8f9fa" py={8} px={4}>
       <Flex
@@ -2474,7 +2178,7 @@ const MathQuestionlist = ({
         mx="auto"
         direction={{ base: "column", lg: "row" }}
       >
-        {/* Main Content Area */}
+        {/* ── Main Content ──────────────────────────────────────────────── */}
         <Box flex="1">
           {/* Breadcrumb */}
           <Box mb={4}>
@@ -2487,7 +2191,6 @@ const MathQuestionlist = ({
                 <BreadcrumbLink
                   onClick={() => {
                     setMathSubject("");
-                    localStorage.removeItem("currentSubcategoryView");
                     navigate("/");
                   }}
                   color="blue.600"
@@ -2502,12 +2205,7 @@ const MathQuestionlist = ({
               {currentSub && (
                 <BreadcrumbItem>
                   <BreadcrumbLink
-                    onClick={() => {
-                      if (MathSubject) {
-                        setMathSubject("");
-                        localStorage.removeItem("currentSubcategoryView");
-                      }
-                    }}
+                    onClick={() => MathSubject && setMathSubject("")}
                     color={MathSubject ? "blue.600" : "gray.700"}
                     fontWeight="500"
                     _hover={
@@ -2518,7 +2216,7 @@ const MathQuestionlist = ({
                     cursor={MathSubject ? "pointer" : "default"}
                     isCurrentPage={!MathSubject}
                   >
-                    {getCategoryDisplayName()}
+                    {getCategoryDisplayName(currentSub)}
                   </BreadcrumbLink>
                 </BreadcrumbItem>
               )}
@@ -2553,7 +2251,7 @@ const MathQuestionlist = ({
                 color="gray.800"
                 letterSpacing="-0.5px"
               >
-                {MathSubject !== "" ? MathSubject : getCategoryDisplayName()}
+                {MathSubject || getCategoryDisplayName(currentSub)}
               </Heading>
               <Text fontSize="sm" mt={1} color="gray.500">
                 {MathSubject
@@ -2563,6 +2261,7 @@ const MathQuestionlist = ({
             </Box>
 
             <CardBody p={6} bg="#fafbfc">
+              {/* CollapseEx — test creator toolbar */}
               {(categoryCompleted || MathSubject !== "") && (
                 <CollapseEx
                   seth={seth}
@@ -2576,20 +2275,31 @@ const MathQuestionlist = ({
                   check={check}
                   maketest={maketest}
                   MathSubject={MathSubject}
-                  category={
-                    categoryData.length > 0
-                      ? categoryData
-                      : getLocalStorage("questiondata") || []
-                  }
+                  category={categoryData}
                   findtotal={findtotal}
                   settotalques={settotalques}
                   totalques={totalques}
-                  setlist={setlist}
-                  settotaltestno={settotaltestno}
+                  setlist={(list) => {
+                    // rebuild quslist from fresh list
+                    if (list.length > 0) {
+                      const base = Math.floor(noOfQus / list.length);
+                      const rem = noOfQus % list.length;
+                      setquslist(
+                        list.map((item, i) => ({
+                          count: i === 0 ? base + rem : base,
+                          qusdata: item,
+                        })),
+                      );
+                    } else {
+                      setquslist([]);
+                    }
+                  }}
+                  settotaltestno={() => {}}
                   setq={setq}
                   setname={setname}
                   setnoOfQus={setnoOfQus}
                   currentSub={currentSub}
+                  persistTest={persistTest}
                 />
               )}
 
@@ -2610,6 +2320,7 @@ const MathQuestionlist = ({
               )}
 
               <VStack spacing={3} mt={4} align="stretch">
+                {/* Counter rows when a custom test is being configured */}
                 {quslist.length > 0 ? (
                   quslist.map((e, i) => (
                     <Box
@@ -2620,10 +2331,7 @@ const MathQuestionlist = ({
                       borderRadius="6px"
                       p={4}
                       transition="all 0.2s"
-                      _hover={{
-                        borderColor: "blue.400",
-                        shadow: "sm",
-                      }}
+                      _hover={{ borderColor: "blue.400", shadow: "sm" }}
                     >
                       <Flex justify="space-between" align="center">
                         <Text fontWeight="500" fontSize="15px" color="gray.700">
@@ -2638,10 +2346,7 @@ const MathQuestionlist = ({
                             color="gray.600"
                             borderRadius="4px"
                             onClick={() => updateCounter(i, "decrement")}
-                            _hover={{
-                              bg: "gray.50",
-                              borderColor: "gray.400",
-                            }}
+                            _hover={{ bg: "gray.50", borderColor: "gray.400" }}
                           />
                           <Box
                             px={4}
@@ -2664,10 +2369,7 @@ const MathQuestionlist = ({
                             color="gray.600"
                             borderRadius="4px"
                             onClick={() => updateCounter(i, "increment")}
-                            _hover={{
-                              bg: "gray.50",
-                              borderColor: "gray.400",
-                            }}
+                            _hover={{ bg: "gray.50", borderColor: "gray.400" }}
                           />
                         </HStack>
                       </Flex>
@@ -2675,22 +2377,16 @@ const MathQuestionlist = ({
                   ))
                 ) : (
                   <VStack spacing={2} align="stretch">
+                    {/* ── Subcategory (topic) view ─── */}
                     {MathSubject ? (
                       (() => {
-                        const dataToUse =
-                          categoryData.length > 0
-                            ? categoryData
-                            : getLocalStorage("questiondata") || [];
-                        return dataToUse.map((e, k) => {
-                          if (e.topic !== MathSubject) return null;
-
-                          const subcategoryTests = dataToUse.filter(
-                            (test) => test.topic === MathSubject,
+                        const testsForTopic = categoryData.filter(
+                          (e) => e.topic === MathSubject,
+                        );
+                        return testsForTopic.map((e, k) => {
+                          const testIndex = testsForTopic.findIndex(
+                            (t) => t.section === e.section,
                           );
-                          const testIndex = subcategoryTests.findIndex(
-                            (test) => test.section === e.section,
-                          );
-
                           const unlocked = isTestUnlocked(
                             currentSub,
                             MathSubject,
@@ -2724,10 +2420,7 @@ const MathQuestionlist = ({
                                 cursor={unlocked ? "pointer" : "not-allowed"}
                                 _hover={
                                   unlocked
-                                    ? {
-                                        borderColor: "blue.400",
-                                        bg: "gray.50",
-                                      }
+                                    ? { borderColor: "blue.400", bg: "gray.50" }
                                     : {}
                                 }
                                 onClick={() => handleTestClick(e, testIndex)}
@@ -2764,15 +2457,19 @@ const MathQuestionlist = ({
                                     )}
                                     {check && unlocked && (
                                       <Box
-                                        onClick={(event) => {
-                                          event.stopPropagation();
-                                          setdirectTest([...directTest, e]);
-                                          setsum(sum + e.question.length);
+                                        onClick={(ev) => {
+                                          ev.stopPropagation();
+                                          setdirectTest((prev) =>
+                                            prev.some((d) => d._id === e._id)
+                                              ? prev.filter(
+                                                  (d) => d._id !== e._id,
+                                                )
+                                              : [...prev, e],
+                                          );
+                                          setsum((s) => s + e.question.length);
                                           seth((prev) =>
                                             prev.includes(k)
-                                              ? prev.filter(
-                                                  (item) => item !== k,
-                                                )
+                                              ? prev.filter((x) => x !== k)
                                               : [...prev, k],
                                           );
                                         }}
@@ -2808,150 +2505,103 @@ const MathQuestionlist = ({
                           );
                         });
                       })()
+                    ) : /* ── Category (subject) view — topic list from API ─── */
+                    currentTopic.length === 0 ? (
+                      <Box p={8} textAlign="center">
+                        <Text color="gray.400" fontSize="14px">
+                          No topics found for this subject.
+                        </Text>
+                      </Box>
                     ) : (
-                      <>
-                        {currentTopic === null || currentTopic.length === 0 ? (
-                          <>
-                            {data.map((e, i) => (
-                              <Box
-                                key={i}
-                                bg="white"
-                                border="1px solid"
-                                borderColor="gray.300"
-                                borderRadius="6px"
-                                p={4}
-                                cursor="pointer"
-                                transition="all 0.2s"
-                                _hover={{
-                                  borderColor: "blue.400",
-                                  bg: "gray.50",
-                                }}
-                                onClick={() =>
-                                  maketest(e.question, true, e.section)
-                                }
-                              >
-                                <Text
-                                  fontWeight="500"
-                                  fontSize="15px"
-                                  color="gray.700"
-                                >
-                                  {e.section}
-                                </Text>
-                              </Box>
-                            ))}
-                          </>
-                        ) : (
-                          currentTopic.map((topic, i) => {
-                            const unlocked = isSubcategoryUnlocked(
-                              currentSub,
-                              i,
-                            );
-                            const completed =
-                              getSubcategoryCompletionStatus(topic);
-                            const stats = getSubcategoryStats(
-                              currentSub,
-                              topic,
-                            );
+                      currentTopic.map((topic, i) => {
+                        const unlocked = isSubcategoryUnlocked(currentSub, i);
+                        const completed = getSubcategoryCompletionStatus(topic);
+                        const stats = getSubcategoryStats(currentSub, topic);
 
-                            return (
-                              <Tooltip
-                                key={i}
-                                label={
-                                  !unlocked
-                                    ? "Complete previous subcategory to unlock"
-                                    : ""
-                                }
-                                placement="top"
-                                hasArrow
-                              >
-                                <Box
-                                  bg={unlocked ? "white" : "gray.50"}
-                                  border="1px solid"
-                                  borderColor={
-                                    unlocked ? "gray.300" : "gray.200"
-                                  }
-                                  borderRadius="6px"
-                                  p={4}
-                                  cursor={unlocked ? "pointer" : "not-allowed"}
-                                  transition="all 0.2s"
-                                  opacity={unlocked ? 1 : 0.6}
-                                  _hover={
-                                    unlocked
-                                      ? {
-                                          borderColor: "blue.400",
-                                          bg: "gray.50",
-                                        }
-                                      : {}
-                                  }
-                                  onClick={() =>
-                                    handleSubcategoryClick(topic, i)
-                                  }
-                                >
-                                  <Flex justify="space-between" align="center">
-                                    <HStack spacing={2}>
-                                      {!unlocked && (
-                                        <LockIcon
-                                          color="gray.400"
-                                          boxSize={4}
-                                        />
-                                      )}
-                                      <VStack align="start" spacing={0}>
-                                        <Text
-                                          fontWeight="500"
-                                          fontSize="15px"
-                                          color={
-                                            unlocked ? "gray.700" : "gray.400"
-                                          }
-                                        >
-                                          {topic}
-                                        </Text>
-                                        {stats.totalQuestions > 0 && (
-                                          <Text fontSize="xs" color="gray.500">
-                                            {stats.totalCorrect} /{" "}
-                                            {stats.totalQuestions} correct
-                                            {stats.percentage > 0 && (
-                                              <Text
-                                                as="span"
-                                                ml={1}
-                                                fontWeight="600"
-                                                color={
-                                                  stats.percentage >= 80
-                                                    ? "green.600"
-                                                    : stats.percentage >= 60
-                                                      ? "orange.600"
-                                                      : "red.600"
-                                                }
-                                              >
-                                                ({stats.percentage}%)
-                                              </Text>
-                                            )}
+                        return (
+                          <Tooltip
+                            key={i}
+                            label={
+                              !unlocked
+                                ? "Complete previous subcategory to unlock"
+                                : ""
+                            }
+                            placement="top"
+                            hasArrow
+                          >
+                            <Box
+                              bg={unlocked ? "white" : "gray.50"}
+                              border="1px solid"
+                              borderColor={unlocked ? "gray.300" : "gray.200"}
+                              borderRadius="6px"
+                              p={4}
+                              cursor={unlocked ? "pointer" : "not-allowed"}
+                              transition="all 0.2s"
+                              opacity={unlocked ? 1 : 0.6}
+                              _hover={
+                                unlocked
+                                  ? { borderColor: "blue.400", bg: "gray.50" }
+                                  : {}
+                              }
+                              onClick={() => handleSubcategoryClick(topic, i)}
+                            >
+                              <Flex justify="space-between" align="center">
+                                <HStack spacing={2}>
+                                  {!unlocked && (
+                                    <LockIcon color="gray.400" boxSize={4} />
+                                  )}
+                                  <VStack align="start" spacing={0}>
+                                    <Text
+                                      fontWeight="500"
+                                      fontSize="15px"
+                                      color={unlocked ? "gray.700" : "gray.400"}
+                                    >
+                                      {topic}
+                                    </Text>
+                                    {stats.totalQuestions > 0 && (
+                                      <Text fontSize="xs" color="gray.500">
+                                        {stats.totalCorrect} /{" "}
+                                        {stats.totalQuestions} correct
+                                        {stats.percentage > 0 && (
+                                          <Text
+                                            as="span"
+                                            ml={1}
+                                            fontWeight="600"
+                                            color={
+                                              stats.percentage >= 80
+                                                ? "green.600"
+                                                : stats.percentage >= 60
+                                                  ? "orange.600"
+                                                  : "red.600"
+                                            }
+                                          >
+                                            ({stats.percentage}%)
                                           </Text>
                                         )}
-                                      </VStack>
-                                    </HStack>
-                                    {completed && (
-                                      <Badge
-                                        colorScheme="green"
-                                        fontSize="12px"
-                                        px={2}
-                                        py={1}
-                                        borderRadius="4px"
-                                        fontWeight="500"
-                                        display="flex"
-                                        alignItems="center"
-                                        gap={1}
-                                      >
-                                        <CheckCircleIcon boxSize={3} />
-                                        Completed
-                                      </Badge>
+                                      </Text>
                                     )}
-                                  </Flex>
-                                </Box>
-                              </Tooltip>
-                            );
-                          })
-                        )}
-                      </>
+                                  </VStack>
+                                </HStack>
+                                {completed && (
+                                  <Badge
+                                    colorScheme="green"
+                                    fontSize="12px"
+                                    px={2}
+                                    py={1}
+                                    borderRadius="4px"
+                                    fontWeight="500"
+                                    display="flex"
+                                    alignItems="center"
+                                    gap={1}
+                                  >
+                                    <CheckCircleIcon boxSize={3} /> Completed
+                                  </Badge>
+                                )}
+                              </Flex>
+                            </Box>
+                          </Tooltip>
+                        );
+                      })
                     )}
                   </VStack>
                 )}
@@ -2960,7 +2610,7 @@ const MathQuestionlist = ({
           </Card>
         </Box>
 
-        {/* Sidebar - Created Tests & API Tests */}
+        {/* ── Sidebar ───────────────────────────────────────────────────── */}
         <Box
           w={{ base: "full", lg: "340px" }}
           display={{ base: "none", md: "block" }}
@@ -2993,20 +2643,9 @@ const MathQuestionlist = ({
                   >
                     Created Tests
                   </Tab>
-                  {/* <Tab
-                    fontSize="sm"
-                    fontWeight="500"
-                    px={3}
-                    py={2}
-                    _selected={{ bg: "purple.600", color: "white" }}
-                  >
-                    Completed Tests
-                  </Tab> */}
                 </TabList>
               </Box>
-
               <TabPanels>
-                {/* Created Tests Tab */}
                 <TabPanel p={0}>
                   <CardBody
                     p={0}
@@ -3020,19 +2659,15 @@ const MathQuestionlist = ({
                           const stats = getTestStatistics(e);
                           return (
                             <Box
-                              key={i}
+                              key={e._id ?? i}
                               p={4}
                               borderBottom="1px solid"
                               borderColor="gray.200"
                               transition="all 0.2s"
                               cursor="pointer"
-                              _hover={{
-                                bg: "gray.50",
-                              }}
-                              _last={{
-                                borderBottom: "none",
-                              }}
-                              onClick={() => handleCreatedTestClick(e, i)}
+                              _hover={{ bg: "gray.50" }}
+                              _last={{ borderBottom: "none" }}
+                              onClick={() => handleCreatedTestClick(e)}
                             >
                               <Flex
                                 justify="space-between"
@@ -3116,7 +2751,6 @@ const MathQuestionlist = ({
                   </CardBody>
                 </TabPanel>
 
-                {/* Completed Tests Tab */}
                 <TabPanel p={0}>
                   <CardBody
                     p={0}
@@ -3133,7 +2767,7 @@ const MathQuestionlist = ({
         </Box>
       </Flex>
 
-      {/* Test Details Modal */}
+      {/* ── Test Details Modal ────────────────────────────────────────── */}
       <Modal isOpen={isOpen} onClose={onClose} size="xl">
         <ModalOverlay />
         <ModalContent>
@@ -3246,164 +2880,119 @@ const MathQuestionlist = ({
                         Detailed Statistics
                       </Text>
                       <Grid templateColumns="repeat(2, 1fr)" gap={3}>
-                        <GridItem>
-                          <Box
-                            bg="blue.50"
-                            border="1px solid"
-                            borderColor="blue.200"
-                            borderRadius="8px"
-                            p={4}
-                            textAlign="center"
-                          >
-                            <Text
-                              fontSize="sm"
-                              color="blue.600"
-                              fontWeight="500"
-                              mb={1}
+                        {[
+                          {
+                            label: "Total Questions",
+                            val: selectedTest.noOfQus || 0,
+                            scheme: "blue",
+                          },
+                          {
+                            label: "Attempted",
+                            val: stats.attempted,
+                            scheme: "purple",
+                          },
+                          {
+                            label: "Correct",
+                            val: stats.correct,
+                            scheme: "green",
+                            icon: <FaCheckCircle color="#48BB78" size={14} />,
+                          },
+                          {
+                            label: "Incorrect",
+                            val: stats.incorrect,
+                            scheme: "red",
+                            icon: <FaTimesCircle color="#F56565" size={14} />,
+                          },
+                        ].map(({ label, val, scheme, icon }) => (
+                          <GridItem key={label}>
+                            <Box
+                              bg={`${scheme}.50`}
+                              border="1px solid"
+                              borderColor={`${scheme}.200`}
+                              borderRadius="8px"
+                              p={4}
+                              textAlign="center"
                             >
-                              Total Questions
-                            </Text>
-                            <Text
-                              fontSize="2xl"
-                              fontWeight="700"
-                              color="blue.700"
-                            >
-                              {selectedTest.noOfQus || 0}
-                            </Text>
-                          </Box>
-                        </GridItem>
-                        <GridItem>
-                          <Box
-                            bg="purple.50"
-                            border="1px solid"
-                            borderColor="purple.200"
-                            borderRadius="8px"
-                            p={4}
-                            textAlign="center"
-                          >
-                            <Text
-                              fontSize="sm"
-                              color="purple.600"
-                              fontWeight="500"
-                              mb={1}
-                            >
-                              Attempted
-                            </Text>
-                            <Text
-                              fontSize="2xl"
-                              fontWeight="700"
-                              color="purple.700"
-                            >
-                              {stats.attempted}
-                            </Text>
-                          </Box>
-                        </GridItem>
-                        <GridItem>
-                          <Box
-                            bg="green.50"
-                            border="1px solid"
-                            borderColor="green.200"
-                            borderRadius="8px"
-                            p={4}
-                            textAlign="center"
-                          >
-                            <Flex align="center" justify="center" mb={1}>
-                              <FaCheckCircle color="#48BB78" size={14} />
+                              {icon && (
+                                <Flex align="center" justify="center" mb={1}>
+                                  {icon}
+                                  <Text
+                                    fontSize="sm"
+                                    color={`${scheme}.600`}
+                                    fontWeight="500"
+                                    ml={1}
+                                  >
+                                    {label}
+                                  </Text>
+                                </Flex>
+                              )}
+                              {!icon && (
+                                <Text
+                                  fontSize="sm"
+                                  color={`${scheme}.600`}
+                                  fontWeight="500"
+                                  mb={1}
+                                >
+                                  {label}
+                                </Text>
+                              )}
                               <Text
-                                fontSize="sm"
-                                color="green.600"
-                                fontWeight="500"
-                                ml={1}
+                                fontSize="2xl"
+                                fontWeight="700"
+                                color={`${scheme}.700`}
                               >
-                                Correct
+                                {val}
                               </Text>
-                            </Flex>
-                            <Text
-                              fontSize="2xl"
-                              fontWeight="700"
-                              color="green.700"
-                            >
-                              {stats.correct}
-                            </Text>
-                          </Box>
-                        </GridItem>
-                        <GridItem>
-                          <Box
-                            bg="red.50"
-                            border="1px solid"
-                            borderColor="red.200"
-                            borderRadius="8px"
-                            p={4}
-                            textAlign="center"
-                          >
-                            <Flex align="center" justify="center" mb={1}>
-                              <FaTimesCircle color="#F56565" size={14} />
-                              <Text
-                                fontSize="sm"
-                                color="red.600"
-                                fontWeight="500"
-                                ml={1}
-                              >
-                                Incorrect
-                              </Text>
-                            </Flex>
-                            <Text
-                              fontSize="2xl"
-                              fontWeight="700"
-                              color="red.700"
-                            >
-                              {stats.incorrect}
-                            </Text>
-                          </Box>
-                        </GridItem>
+                            </Box>
+                          </GridItem>
+                        ))}
                       </Grid>
                     </Box>
 
-                    {selectedTest.quslist &&
-                      selectedTest.quslist.length > 0 && (
-                        <Box>
-                          <Text
-                            fontSize="sm"
-                            fontWeight="600"
-                            color="gray.700"
-                            mb={3}
-                          >
-                            Topics Covered ({selectedTest.quslist.length})
-                          </Text>
-                          <VStack spacing={2} align="stretch">
-                            {selectedTest.quslist.map((topic, idx) => (
-                              <Flex
-                                key={idx}
-                                justify="space-between"
-                                align="center"
-                                bg="gray.50"
-                                p={3}
-                                borderRadius="6px"
-                                border="1px solid"
-                                borderColor="gray.200"
+                    {selectedTest.quslist?.length > 0 && (
+                      <Box>
+                        <Text
+                          fontSize="sm"
+                          fontWeight="600"
+                          color="gray.700"
+                          mb={3}
+                        >
+                          Topics Covered ({selectedTest.quslist.length})
+                        </Text>
+                        <VStack spacing={2} align="stretch">
+                          {selectedTest.quslist.map((topic, idx) => (
+                            <Flex
+                              key={idx}
+                              justify="space-between"
+                              align="center"
+                              bg="gray.50"
+                              p={3}
+                              borderRadius="6px"
+                              border="1px solid"
+                              borderColor="gray.200"
+                            >
+                              <Text
+                                fontSize="sm"
+                                color="gray.700"
+                                fontWeight="500"
                               >
-                                <Text
-                                  fontSize="sm"
-                                  color="gray.700"
-                                  fontWeight="500"
-                                >
-                                  {topic.qusdata}
-                                </Text>
-                                <Badge
-                                  bg="gray.200"
-                                  color="gray.700"
-                                  fontSize="xs"
-                                  px={2}
-                                  py={1}
-                                  borderRadius="4px"
-                                >
-                                  {topic.count} questions
-                                </Badge>
-                              </Flex>
-                            ))}
-                          </VStack>
-                        </Box>
-                      )}
+                                {topic.qusdata}
+                              </Text>
+                              <Badge
+                                bg="gray.200"
+                                color="gray.700"
+                                fontSize="xs"
+                                px={2}
+                                py={1}
+                                borderRadius="4px"
+                              >
+                                {topic.count} questions
+                              </Badge>
+                            </Flex>
+                          ))}
+                        </VStack>
+                      </Box>
+                    )}
 
                     {(selectedTest.category || selectedTest.subcategory) && (
                       <Box>
@@ -3427,7 +3016,7 @@ const MathQuestionlist = ({
                                 px={3}
                                 py={1}
                               >
-                                {selectedTest.category}
+                                {getCategoryDisplayName(selectedTest.category)}
                               </Badge>
                             </Flex>
                           )}
@@ -3453,7 +3042,6 @@ const MathQuestionlist = ({
                 );
               })()}
           </ModalBody>
-
           <ModalFooter borderTop="1px solid" borderColor="gray.200">
             <Button variant="ghost" mr={3} onClick={onClose}>
               Close

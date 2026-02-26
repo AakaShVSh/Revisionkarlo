@@ -1,0 +1,9 @@
+Quick API reference:
+coaching.controller.js
+POST /coaching/create · GET /coaching · GET /coaching/:slug · PATCH /coaching/:id · DELETE /coaching/:id
+
+test.controller.js
+POST /tests/create · GET /tests · GET /tests/id/:id · GET /tests/:slug · GET /tests/:id/leaderboard · PATCH /tests/:id · DELETE /tests/:id
+
+result.controller.js
+POST /results/submit · GET /results/student/:studentId · GET /results/test/:testId · GET /results/:id · DELETE /results/:id
