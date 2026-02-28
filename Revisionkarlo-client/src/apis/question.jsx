@@ -23,23 +23,17 @@ const apiFetch = async (path, options = {}) => {
 
 /**
  * GET /questions?subject=...&section=...&topic=...&difficultyLevel=...
- *
- * Returns array of question docs, each shaped:
- * { _id, subject, section, topic, difficultyLevel, question: [{ _id, qus, options, answer, explanation }] }
+ * Returns array of question docs.
  */
 export const fetchQuestions = async (filters = {}) => {
   const params = new URLSearchParams(filters).toString();
   const data = await apiFetch(`/questions${params ? `?${params}` : ""}`);
-  return data.data; // array of docs
+  return data.data;
 };
 
 /**
  * GET /questions/subjects
- *
- * Returns the full subject → section → topics tree from the DB.
- * Shape: { math: { "Quantitative Aptitude": ["Profit and Loss", ...] }, english: {...}, ... }
- *
- * Use this everywhere instead of hardcoded topic arrays.
+ * Returns { math: { "Quantitative Aptitude": ["Profit and Loss", ...] }, ... }
  */
 export const fetchSubjectTree = async () => {
   const data = await apiFetch("/questions/subjects");
@@ -47,25 +41,16 @@ export const fetchSubjectTree = async () => {
 };
 
 /**
- * Returns a flat, ordered list of topic strings for a given subject.
- * The order comes from the API; nothing is hardcoded here.
- *
- * @param {string} subject  e.g. "math" | "english" | "gs" | "vocabulary" | "reasoning" | "mathtwo"
- * @returns {Promise<string[]>}  e.g. ["Profit and Loss", "Time and Work", ...]
+ * Returns flat ordered topic list for a subject from the API.
  */
 export const fetchTopicsForSubject = async (subject) => {
   const tree = await fetchSubjectTree();
   const sections = tree[subject.toLowerCase()] ?? {};
-  // Flatten: each section can have multiple topics; keep insertion order from API
-  const topics = Object.values(sections).flat();
-  return topics;
+  return Object.values(sections).flat();
 };
 
 /**
- * Returns a map of  { [sectionName]: [topic, ...] }  for a given subject.
- *
- * @param {string} subject
- * @returns {Promise<Record<string, string[]>>}
+ * Returns { [sectionName]: [topic, ...] } for a subject.
  */
 export const fetchSectionsForSubject = async (subject) => {
   const tree = await fetchSubjectTree();
@@ -73,10 +58,7 @@ export const fetchSectionsForSubject = async (subject) => {
 };
 
 /**
- * Returns all available subject keys from the DB (lowercased).
- * e.g. ["math", "english", "gs", "vocabulary", "reasoning"]
- *
- * @returns {Promise<string[]>}
+ * Returns all subject keys from the DB (lowercased).
  */
 export const fetchAllSubjects = async () => {
   const tree = await fetchSubjectTree();
@@ -90,7 +72,6 @@ export const fetchQuestionById = async (id) => {
 };
 
 // POST /questions/create
-// Body: { subject, section, topic, difficultyLevel, question: [...] }
 export const createQuestion = async (payload) => {
   return apiFetch("/questions/create", {
     method: "POST",
@@ -107,7 +88,6 @@ export const updateQuestion = async (id, payload) => {
 };
 
 // PATCH /questions/:id/add-items
-// Body: { items: [{ qus, options, answer, explanation }] }
 export const addQuestionItems = async (id, items) => {
   return apiFetch(`/questions/${id}/add-items`, {
     method: "PATCH",
@@ -127,7 +107,6 @@ export const deleteQuestionItem = async (id, itemId) => {
 
 // ── User Test Data ─────────────────────────────────────────────────────────
 
-// POST /UserTestData/AddNew-userTestData
 export const postUserTestResult = async (payload) => {
   return apiFetch("/UserTestData/AddNew-userTestData", {
     method: "POST",
@@ -135,13 +114,11 @@ export const postUserTestResult = async (payload) => {
   });
 };
 
-// GET /UserTestData
 export const fetchUserTestData = async () => {
   const data = await apiFetch("/UserTestData");
   return data.data;
 };
 
-// PATCH /UserTestData/updating-userTestData/:id
 export const updateUserTestData = async (id, payload) => {
   return apiFetch(`/UserTestData/updating-userTestData/${id}`, {
     method: "PATCH",
@@ -149,7 +126,6 @@ export const updateUserTestData = async (id, payload) => {
   });
 };
 
-// DELETE /UserTestData/delete-userTestData/:id
 export const deleteUserTestData = async (id) => {
   return apiFetch(`/UserTestData/delete-userTestData/${id}`, {
     method: "DELETE",
@@ -158,7 +134,6 @@ export const deleteUserTestData = async (id) => {
 
 // ── Auth ───────────────────────────────────────────────────────────────────
 
-// POST /auth/signin  →  { token, data: { _id, Email, Name } }
 export const signIn = async ({ Email, Password }) => {
   return apiFetch("/auth/signin", {
     method: "POST",
@@ -166,7 +141,6 @@ export const signIn = async ({ Email, Password }) => {
   });
 };
 
-// POST /auth/signup  →  { token, data: { _id, Email } }
 export const signUp = async (payload) => {
   return apiFetch("/auth/signup", {
     method: "POST",
@@ -174,7 +148,6 @@ export const signUp = async (payload) => {
   });
 };
 
-// POST /auth/forgot-password  →  { Otp, user: { _id } }
 export const forgotPassword = async (Email) => {
   return apiFetch("/auth/forgot-password", {
     method: "POST",
@@ -182,10 +155,40 @@ export const forgotPassword = async (Email) => {
   });
 };
 
-// PATCH /auth/change-password/:id
 export const changePassword = async (id, Password) => {
   return apiFetch(`/auth/change-password/${id}`, {
     method: "PATCH",
     body: JSON.stringify({ Password }),
   });
+};
+
+export const fetchCoachings = async (filters = {}) => {
+  const params = new URLSearchParams(filters).toString();
+  const data = await apiFetch(`/coaching${params ? `?${params}` : ""}`);
+  return data.data;
+};
+
+export const fetchCoachingBySlug = async (slug) => {
+  const data = await apiFetch(`/coaching/${slug}`);
+  return data.data;
+};
+
+export const createCoaching = async (payload) => {
+  const data = await apiFetch("/coaching/create", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  return data.data;
+};
+
+export const updateCoaching = async (id, payload) => {
+  const data = await apiFetch(`/coaching/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+  return data.data;
+};
+
+export const deleteCoaching = async (id) => {
+  return apiFetch(`/coaching/${id}`, { method: "DELETE" });
 };

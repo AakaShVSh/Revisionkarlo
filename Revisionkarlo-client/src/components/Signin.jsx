@@ -208,9 +208,13 @@ import {
   Text,
   Alert,
   AlertIcon,
+  InputGroup,
+  InputRightElement,
+  IconButton,
 } from "@chakra-ui/react";
 import { Link, useNavigate } from "react-router-dom";
-import { signInApi } from "../services/testService";
+import { signInApi } from "../apis/auth";
+import { FaEye, FaEyeSlash } from "react-icons/fa";
 
 const Signin = ({
   message,
@@ -221,6 +225,7 @@ const Signin = ({
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [signInSuccess, setSignInSuccess] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [signinData, setSigninData] = useState({
     Email: "",
     Password: "",
@@ -239,27 +244,22 @@ const Signin = ({
       setMessage("Enter a valid email");
       return;
     }
-
     setLoading(true);
     const success = await signInApi(signinData, setMessage);
     setLoading(false);
-
     if (success) {
       setSignInSuccess(true);
       setCheckNavigation(true);
     }
   };
 
-  // Navigate after success
   useEffect(() => {
     if (!signInSuccess || !checkNavigation) return;
-
     const timer = setTimeout(() => {
       setMessage(null);
       setCheckNavigation(false);
       navigate("/");
-    }, 2000);
-
+    }, 1500);
     return () => clearTimeout(timer);
   }, [
     signInSuccess,
@@ -269,7 +269,6 @@ const Signin = ({
     setCheckNavigation,
   ]);
 
-  // Auto-clear error messages
   useEffect(() => {
     if (!message || signInSuccess) return;
     const timer = setTimeout(() => setMessage(null), 5000);
@@ -279,7 +278,7 @@ const Signin = ({
   return (
     <>
       {message && (
-        <Alert status={signInSuccess ? "success" : "error"}>
+        <Alert status={signInSuccess ? "success" : "error"} mb={0}>
           <AlertIcon />
           {message}
         </Alert>
@@ -300,7 +299,6 @@ const Signin = ({
             <FormLabel>Email</FormLabel>
             <Input
               type="email"
-              required
               placeholder="Enter your Email"
               value={signinData.Email}
               onKeyDown={handleKeyDown}
@@ -312,16 +310,26 @@ const Signin = ({
 
           <Box mt="3%">
             <FormLabel>Password</FormLabel>
-            <Input
-              type="password"
-              required
-              placeholder="Enter your Password"
-              value={signinData.Password}
-              onKeyDown={handleKeyDown}
-              onChange={(e) =>
-                setSigninData({ ...signinData, Password: e.target.value })
-              }
-            />
+            <InputGroup>
+              <Input
+                type={showPassword ? "text" : "password"}
+                placeholder="Enter your Password"
+                value={signinData.Password}
+                onKeyDown={handleKeyDown}
+                onChange={(e) =>
+                  setSigninData({ ...signinData, Password: e.target.value })
+                }
+              />
+              <InputRightElement>
+                <IconButton
+                  size="sm"
+                  variant="ghost"
+                  aria-label="Toggle password"
+                  icon={showPassword ? <FaEyeSlash /> : <FaEye />}
+                  onClick={() => setShowPassword((p) => !p)}
+                />
+              </InputRightElement>
+            </InputGroup>
             <Link to="/auth/forgotPassword">
               <Text
                 fontSize="12px"
@@ -357,9 +365,10 @@ const Signin = ({
             colorScheme="teal"
             bg="#4285f4"
             isLoading={loading}
+            loadingText="Signing in..."
             onClick={handleSubmit}
           >
-            Submit
+            Sign In
           </Button>
         </FormControl>
       </Container>

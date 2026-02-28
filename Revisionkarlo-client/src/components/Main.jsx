@@ -402,33 +402,49 @@
 
 
 
-
-
 import React, { useEffect, useState } from "react";
 import { Routes, Route, useLocation } from "react-router-dom";
 import { useToast } from "@chakra-ui/react";
-import TakeTest from "./TakeTest";
-import SubmitTest from "./SubmitTest";
-import Signin from "./Signin";
-import Signup from "./Signup";
-import Navbar from "./Navbar";
-import ReviewTest from "./ReviewTest";
-import MathQuestionlist from "./MathQuestionlist";
-import ResultPage from "./ResultPage";
-import SaveQuestion from "./SaveQuestion";
-import SavedPage from "./SavedData";
-import Home from "./Home";
+import { setLocalStorage } from "../helpers/localStorage";
 import ScrollToTop from "../helpers/ScrollToTop";
 import ProtectedRoute from "../helpers/ProtectedRoute";
-import Footer from "./Footer";
-import ForgotPassword from "./ForgotPassword";
-import Feedback from "./Feedback";
-import ReportAdminPage from "./ReportAdminPage";
-import { setLocalStorage } from "../helpers/localStorage";
 
-// ✅ FIXED: Corrected BASE_URL to match backend (port 80, not 800)
+// ── Layout ─────────────────────────────────────────────────────────────────
+import Navbar from "./Navbar"; // ✅ exists (updated)
+import Footer from "./Footer"; // ✅ exists
+
+// ── Auth ───────────────────────────────────────────────────────────────────
+import Signin from "./Signin"; // ✅ exists
+import Signup from "./Signup"; // ✅ exists
+import ForgotPassword from "./ForgotPassword"; // ✅ exists
+
+// ── Home ───────────────────────────────────────────────────────────────────
+import Home from "./Home"; // ✅ exists
+
+// ── Test flow ──────────────────────────────────────────────────────────────
+import MathQuestionlist from "./MathQuestionlist"; // ✅ exists
+import TakeTest from "./TakeTest"; // ✅ exists
+import ResultPage from "./ResultPage"; // ✅ exists
+// import ResultPriview from "./ResultPriview"; // ✅ exists
+import ReviewTest from "./ReviewTest"; // ✅ exists
+import SubmitTest from "./SubmitTest"; // ✅ exists
+// import SubmitTestModule from "./SubmitTestModule"; // ✅ exists
+
+// ── Other existing pages ───────────────────────────────────────────────────
+import Feedback from "./Feedback"; // ✅ exists
+import ReportAdminPage from "./ReportAdminPage"; // ✅ exists
+import SaveQuestion from "./SaveQuestion"; // ✅ exists
+import SavedPage from "./SavedData"; // ✅ exists
+// import RankPage from "./RankPage"; // ✅ exists
+// import UserFeedback from "./Userfeedback"; // ✅ exists
+import UserTestDataList from "./UserTestDataList"; // ✅ exists
+// import Analysis from "./Analysis"; // ✅ exists
+import CreateTest from "./CreateTest"; // ✅ exists
+
+// ── New (created this session) ─────────────────────────────────────────────
+import CoachingPage from "./CoachingPage"; // ✅ NEW — /coaching list + /coaching/:slug detail
+
 const BASE_URL = "http://localhost:80";
-// For production, use: "https://testwala-backend.onrender.com/api"
 
 const Main = () => {
   const location = useLocation();
@@ -446,64 +462,43 @@ const Main = () => {
 
   const handleFullScreen = (isFull) => {
     setIsFullScreen(isFull);
-    if (isFull) {
-      document.documentElement.requestFullscreen?.();
-    } else {
-      document.exitFullscreen?.();
-    }
+    if (isFull) document.documentElement.requestFullscreen?.();
+    else document.exitFullscreen?.();
   };
 
-  // ✅ FIXED: Added proper error handling and loading states
   useEffect(() => {
     if (!chooseSub) return;
-
-    console.log("📚 Fetching questions for subject:", chooseSub);
     setCurrentSub(chooseSub);
     setLocalStorage("Subject", chooseSub);
-    setchoosesub(""); // Reset to prevent re-fetching
+    setchoosesub("");
 
-    const fetchQuestions = async () => {
+    const loadQuestions = async () => {
       setIsLoading(true);
       try {
-        const res = await fetch(`${BASE_URL}/questions?subject=${chooseSub}`);
-
-        if (!res.ok) {
-          throw new Error(`HTTP error! status: ${res.status}`);
-        }
-
-        const data = await res.json();
-
-        console.log("✅ Questions fetched successfully:", {
-          subject: chooseSub,
-          count: data?.length || 0,
-          dataStructure: data?.[0] ? Object.keys(data[0]) : [],
+        const res = await fetch(`${BASE_URL}/questions?subject=${chooseSub}`, {
+          credentials: "include",
         });
-
-        setQuestionsCategory(data);
-        setQuestions(data);
-
+        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+        const data = await res.json();
+        const docs = data?.data ?? data ?? [];
+        setQuestionsCategory(docs);
+        setQuestions(docs);
         toast({
           title: "Questions Loaded",
-          description: `Loaded ${data?.length || 0} question sets for ${chooseSub}`,
           status: "success",
           duration: 2000,
           isClosable: true,
           position: "top-right",
         });
       } catch (err) {
-        console.error("❌ Error fetching questions:", err);
-
         toast({
           title: "Failed to Load Questions",
-          description:
-            err.message || "Please check your connection and try again",
+          description: err.message,
           status: "error",
           duration: 4000,
           isClosable: true,
           position: "top-right",
         });
-
-        // Set empty array to prevent app crash
         setQuestionsCategory([]);
         setQuestions([]);
       } finally {
@@ -511,10 +506,9 @@ const Main = () => {
       }
     };
 
-    fetchQuestions();
+    loadQuestions();
   }, [chooseSub, toast]);
 
-  // Persist test title + questions to localStorage
   useEffect(() => {
     if (testTitle !== null) {
       setLocalStorage("category", testTitle);
@@ -529,52 +523,39 @@ const Main = () => {
     location.pathname === "/auth/forgotPassword" ||
     location.pathname === "/test";
 
+  const authProps = {
+    message,
+    setMessage,
+    checkNavigation,
+    setCheckNavigation,
+  };
+
   return (
     <>
       {!hideLayout && <Navbar />}
       <ScrollToTop />
 
       <Routes>
+        {/* Home */}
         <Route path="/" element={<Home setchoosesub={setchoosesub} />} />
 
-        <Route
-          path="/auth/signin"
-          element={
-            <Signin
-              message={message}
-              setMessage={setMessage}
-              checkNavigation={checkNavigation}
-              setCheckNavigation={setCheckNavigation}
-            />
-          }
-        />
-
-        <Route
-          path="/auth/signup"
-          element={
-            <Signup
-              message={message}
-              setMessage={setMessage}
-              checkNavigation={checkNavigation}
-              setCheckNavigation={setCheckNavigation}
-            />
-          }
-        />
-
+        {/* Auth */}
+        <Route path="/auth/signin" element={<Signin {...authProps} />} />
+        <Route path="/auth/signup" element={<Signup {...authProps} />} />
         <Route
           path="/auth/forgotPassword"
           element={<ForgotPassword message={message} setMessage={setMessage} />}
         />
 
+        {/* Test flow */}
         <Route
           path="/test"
           element={
             <TakeTest handleFullScreen={handleFullScreen} quest={quest} />
           }
         />
-
         <Route path="/test-result" element={<ResultPage />} />
-
+        {/* <Route path="/result-preview" element={<ResultPriview />} /> */}
         <Route
           path="/Review-Test"
           element={
@@ -583,7 +564,9 @@ const Main = () => {
             </ProtectedRoute>
           }
         />
+        <Route path="/SubmitTest" element={<SubmitTest />} />
 
+        {/* Subject question bank */}
         <Route
           path="/questionList"
           element={
@@ -599,8 +582,23 @@ const Main = () => {
           }
         />
 
-        <Route path="/GiveFeedback" element={<Feedback />} />
+        {/* Coaching — :slug MUST be before bare /coaching */}
+        <Route path="/coaching/:slug" element={<CoachingPage />} />
+        <Route path="/coaching" element={<CoachingPage />} />
 
+        {/* Public */}
+        <Route path="/GiveFeedback" element={<Feedback />} />
+        {/* <Route path="/RankPage" element={<RankPage />} /> */}
+
+        {/* Protected */}
+        {/* <Route
+          path="/Analysis"
+          element={
+            <ProtectedRoute>
+              <Analysis />
+            </ProtectedRoute>
+          }
+        /> */}
         <Route
           path="/Saved-Question"
           element={
@@ -609,7 +607,6 @@ const Main = () => {
             </ProtectedRoute>
           }
         />
-
         <Route
           path="/ReportAdmin"
           element={
@@ -618,12 +615,43 @@ const Main = () => {
             </ProtectedRoute>
           }
         />
-
         <Route
           path="/savedData"
           element={
             <ProtectedRoute>
               <SavedPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/UserTestData"
+          element={
+            <ProtectedRoute>
+              <UserTestDataList />
+            </ProtectedRoute>
+          }
+        />
+        {/* <Route
+          path="/UserFeedback"
+          element={
+            <ProtectedRoute>
+              <UserFeedback />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/SubmitTestModule"
+          element={
+            <ProtectedRoute>
+              <SubmitTestModule />
+            </ProtectedRoute>
+          }
+        /> */}
+        <Route
+          path="/CreateTest"
+          element={
+            <ProtectedRoute>
+              <CreateTest />
             </ProtectedRoute>
           }
         />
@@ -635,11 +663,6 @@ const Main = () => {
 };
 
 export default Main;
-
-
-
-
-
 
 
 

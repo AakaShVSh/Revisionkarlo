@@ -264,12 +264,15 @@ import {
   Input,
   Button,
   Text,
-  Checkbox,
-  AlertIcon,
   Alert,
+  AlertIcon,
+  InputGroup,
+  InputRightElement,
+  IconButton,
 } from "@chakra-ui/react";
 import { Link, useNavigate } from "react-router-dom";
-import { signUpApi } from "../services/testService";
+import { signUpApi } from "../apis/auth";
+import { FaEye, FaEyeSlash } from "react-icons/fa";
 
 const Signup = ({
   message,
@@ -279,71 +282,80 @@ const Signup = ({
 }) => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
-  const [signupSuccess, setSignupSuccess] = useState(false);
-  const [cmpPassword, setcmpPassword] = useState("");
-  const [signUpData, setSignUpData] = useState({
+  const [signUpSuccess, setSignUpSuccess] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [signupData, setSignupData] = useState({
+    Name: "",
     Email: "",
     Password: "",
+    confirmPassword: "",
   });
 
   const handleKeyDown = (e) => {
-    if (e.key === "Enter") handleSignup();
+    if (e.key === "Enter") handleSubmit();
   };
 
-  const handleSignup = async () => {
-    if (!signUpData.Email || !signUpData.Password || !cmpPassword) {
+  const handleSubmit = async () => {
+    if (
+      !signupData.Name ||
+      !signupData.Email ||
+      !signupData.Password ||
+      !signupData.confirmPassword
+    ) {
       setMessage("All fields are Required");
       return;
     }
-    if (!signUpData.Email.includes("@")) {
+    if (!signupData.Email.includes("@")) {
       setMessage("Enter a valid email");
       return;
     }
-    if (signUpData.Password !== cmpPassword) {
-      setMessage("Password and Confirm Password should be same");
+    if (signupData.Password !== signupData.confirmPassword) {
+      setMessage("Passwords do not match");
+      return;
+    }
+    if (signupData.Password.length < 6) {
+      setMessage("Password must be at least 6 characters");
       return;
     }
 
     setLoading(true);
-    const success = await signUpApi(signUpData, cmpPassword, setMessage);
+    const { confirmPassword, ...payload } = signupData;
+    const success = await signUpApi(payload, confirmPassword, setMessage);
     setLoading(false);
 
     if (success) {
-      setSignupSuccess(true);
+      setSignUpSuccess(true);
       setCheckNavigation(true);
     }
   };
 
-  // Navigate to signin after success
   useEffect(() => {
-    if (!signupSuccess || !checkNavigation) return;
-
+    if (!signUpSuccess || !checkNavigation) return;
     const timer = setTimeout(() => {
       setMessage(null);
       setCheckNavigation(false);
-      navigate("/auth/signin");
-    }, 2000);
-
+      navigate("/");
+    }, 1500);
     return () => clearTimeout(timer);
   }, [
-    signupSuccess,
+    signUpSuccess,
     checkNavigation,
     navigate,
     setMessage,
     setCheckNavigation,
   ]);
 
-  // Auto-clear error messages
   useEffect(() => {
-    if (!message || signupSuccess) return;
+    if (!message || signUpSuccess) return;
     const timer = setTimeout(() => setMessage(null), 5000);
     return () => clearTimeout(timer);
-  }, [message, signupSuccess, setMessage]);
+  }, [message, signUpSuccess, setMessage]);
 
   return (
     <>
       {message && (
-        <Alert status={signupSuccess ? "success" : "error"}>
+        <Alert status={signUpSuccess ? "success" : "error"} mb={0}>
           <AlertIcon />
           {message}
         </Alert>
@@ -351,85 +363,118 @@ const Signup = ({
 
       <Container
         mt="3%"
-        maxW={{ base: "90%", md: "65%", lg: "40%" }}
         borderRadius="20px"
+        maxW={{ base: "90%", md: "65%", lg: "40%" }}
         p="2% 4% 4% 4%"
       >
-        <Heading textAlign="center" mb="11%">
-          Sign Up
+        <Heading textAlign="center" mb="8%">
+          Create Account
         </Heading>
 
         <FormControl>
           <Box>
+            <FormLabel>Full Name</FormLabel>
+            <Input
+              type="text"
+              placeholder="Enter your Name"
+              value={signupData.Name}
+              onKeyDown={handleKeyDown}
+              onChange={(e) =>
+                setSignupData({ ...signupData, Name: e.target.value })
+              }
+            />
+          </Box>
+
+          <Box mt="3%">
             <FormLabel>Email</FormLabel>
             <Input
               type="email"
-              required
               placeholder="Enter your Email"
-              value={signUpData.Email}
+              value={signupData.Email}
               onKeyDown={handleKeyDown}
               onChange={(e) =>
-                setSignUpData({ ...signUpData, Email: e.target.value })
+                setSignupData({ ...signupData, Email: e.target.value })
               }
             />
           </Box>
 
           <Box mt="3%">
             <FormLabel>Password</FormLabel>
-            <Input
-              type="password"
-              required
-              placeholder="Enter your Password"
-              value={signUpData.Password}
-              onKeyDown={handleKeyDown}
-              onChange={(e) =>
-                setSignUpData({ ...signUpData, Password: e.target.value })
-              }
-            />
+            <InputGroup>
+              <Input
+                type={showPassword ? "text" : "password"}
+                placeholder="Create a Password"
+                value={signupData.Password}
+                onKeyDown={handleKeyDown}
+                onChange={(e) =>
+                  setSignupData({ ...signupData, Password: e.target.value })
+                }
+              />
+              <InputRightElement>
+                <IconButton
+                  size="sm"
+                  variant="ghost"
+                  aria-label="Toggle password"
+                  icon={showPassword ? <FaEyeSlash /> : <FaEye />}
+                  onClick={() => setShowPassword((p) => !p)}
+                />
+              </InputRightElement>
+            </InputGroup>
           </Box>
 
           <Box mt="3%">
             <FormLabel>Confirm Password</FormLabel>
-            <Input
-              type="password"
-              required
-              placeholder="Confirm your Password"
-              value={cmpPassword}
-              onKeyDown={handleKeyDown}
-              onChange={(e) => setcmpPassword(e.target.value)}
-            />
+            <InputGroup>
+              <Input
+                type={showConfirm ? "text" : "password"}
+                placeholder="Confirm your Password"
+                value={signupData.confirmPassword}
+                onKeyDown={handleKeyDown}
+                onChange={(e) =>
+                  setSignupData({
+                    ...signupData,
+                    confirmPassword: e.target.value,
+                  })
+                }
+              />
+              <InputRightElement>
+                <IconButton
+                  size="sm"
+                  variant="ghost"
+                  aria-label="Toggle confirm password"
+                  icon={showConfirm ? <FaEyeSlash /> : <FaEye />}
+                  onClick={() => setShowConfirm((p) => !p)}
+                />
+              </InputRightElement>
+            </InputGroup>
           </Box>
 
           <Box mt="7%">
-            <Checkbox fontSize="sm">
-              You agree to our Terms of service &amp; Privacy Policy
-            </Checkbox>
-            <Box>
-              <Text mt="1%" fontSize="md">
-                Already have an account?{" "}
-                <Link to="/auth/signin">
-                  <Text
-                    as="span"
-                    cursor="pointer"
-                    textDecoration="underline"
-                    color="#1f4985"
-                  >
-                    Click Here for SignIn
-                  </Text>
-                </Link>
-              </Text>
-            </Box>
+            <Text fontSize="md">
+              Already have an account?{" "}
+              <Link to="/auth/signin">
+                <Text
+                  as="span"
+                  cursor="pointer"
+                  textDecoration="underline"
+                  color="#1f4985"
+                >
+                  Sign In
+                </Text>
+              </Link>
+            </Text>
           </Box>
 
           <Button
             w="100%"
             mt="3%"
-            color="white"
+            colorScheme="teal"
             bg="#4285f4"
             isLoading={loading}
-            onClick={handleSignup}
+            loadingText="Creating account..."
+            onClick={handleSubmit}
           >
-            Submit
+            Create Account
           </Button>
         </FormControl>
       </Container>

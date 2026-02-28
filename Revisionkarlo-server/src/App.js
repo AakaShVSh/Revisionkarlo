@@ -56,13 +56,25 @@
 // module.exports = app;
 
 const express = require("express");
-const cookies = require("cookie-parser");
+const cookieParser = require("cookie-parser");
 const cors = require("cors");
 const app = express();
 
 app.use(express.json());
-app.use(cookies());
-app.use(cors());
+const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:3000";
+
+app.use(
+  cors({
+    origin: FRONTEND_URL, // exact origin — "*" does NOT work with credentials
+    credentials: true, // allows cookies to be sent cross-origin
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  }),
+);
+app.use(cookieParser());
+
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // ── Auth ──────────────────────────────────────────────────────────────────
 app.use("/auth", require("./controllers/auth.controller"));
