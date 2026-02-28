@@ -9,7 +9,6 @@ import {
   Badge,
   Progress,
   Avatar,
-  Divider,
   useToast,
   AlertDialog,
   AlertDialogOverlay,
@@ -26,9 +25,8 @@ import {
   ModalCloseButton,
   ModalFooter,
   Grid,
-  GridItem,
 } from "@chakra-ui/react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import {
   FaArrowLeft,
   FaClock,
@@ -42,11 +40,14 @@ import {
   FaCheck,
   FaChartBar,
   FaPlay,
-  FaEye,
   FaBookOpen,
   FaCrown,
   FaFire,
   FaAward,
+  FaGlobe,
+  FaInfoCircle,
+  FaShieldAlt,
+  FaListUl,
 } from "react-icons/fa";
 
 const BASE = "http://localhost:80";
@@ -70,15 +71,14 @@ const getCurrentUser = () => {
   }
 };
 
-const getLocalStorage = (key) => {
+const getLS = (key) => {
   try {
     return JSON.parse(localStorage.getItem(key));
   } catch {
     return null;
   }
 };
-
-const setLocalStorage = (key, val) => {
+const setLS = (key, val) => {
   try {
     localStorage.setItem(key, JSON.stringify(val));
   } catch {}
@@ -128,7 +128,6 @@ function LeaderRow({ rank, result, currentUserId }) {
   const pct = result.scorePercentage ?? result.percentage ?? 0;
   const isMe = String(result.studentId?._id) === String(currentUserId);
   const medals = ["🥇", "🥈", "🥉"];
-
   return (
     <Flex
       px={5}
@@ -137,7 +136,6 @@ function LeaderRow({ rank, result, currentUserId }) {
       gap={3}
       bg={isMe ? "linear-gradient(90deg,#eff6ff,#f0fdf4)" : "transparent"}
       borderLeft={isMe ? "3px solid #4a72b8" : "3px solid transparent"}
-      transition="background .15s"
       _hover={{ bg: "#f8fafc" }}
     >
       <Text w="28px" fontSize="15px" textAlign="center">
@@ -191,12 +189,462 @@ function LeaderRow({ rank, result, currentUserId }) {
   );
 }
 
+// ─── Test Info / Landing Page ─────────────────────────────────────
+// This is shown BEFORE starting the test - shows all test details and a big Start button
+function TestInfoPage({ test, stats, onStart, user, myResult }) {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const timeLimitMin = test.timeLimitMin || test.timeLimit || 30;
+  const isPrivate =
+    test.visibility === "private" || test.accessType === "private";
+  const questionCount = test.questions?.length || 0;
+
+  const handleStartClick = () => {
+    if (!user) {
+      // Redirect to signin, then come back to THIS page
+      const returnPath = location.pathname + location.search;
+      navigate(`/auth/signin?redirect=${encodeURIComponent(returnPath)}`);
+      return;
+    }
+    onStart();
+  };
+
+  const RULES = [
+    "Do not switch tabs or windows during the test",
+    "Test will auto-submit when time runs out",
+    "You can mark questions for review and come back",
+    "Each question carries equal marks",
+    "There is no negative marking",
+  ];
+
+  return (
+    <Box minH="100vh" bg="#f8fafc" fontFamily="'Sora',sans-serif">
+      {/* Hero */}
+      <Box
+        bg="linear-gradient(135deg,#0f1e3a 0%,#1e3a5f 50%,#2d5fa8 100%)"
+        px={{ base: 4, md: 8 }}
+        pt={{ base: 10, md: 14 }}
+        pb={{ base: 14, md: 20 }}
+        position="relative"
+        overflow="hidden"
+      >
+        <Box
+          position="absolute"
+          right="-80px"
+          top="-80px"
+          w="300px"
+          h="300px"
+          borderRadius="full"
+          bg="rgba(255,255,255,.03)"
+        />
+        <Box maxW="800px" mx="auto" position="relative" zIndex={1}>
+          <Flex
+            align="center"
+            gap={2}
+            mb={8}
+            cursor="pointer"
+            w="fit-content"
+            color="rgba(255,255,255,.5)"
+            _hover={{ color: "rgba(255,255,255,.9)" }}
+            onClick={() => navigate(-1)}
+          >
+            <Icon as={FaArrowLeft} fontSize="12px" />
+            <Text fontSize="13px" fontWeight={600}>
+              Back
+            </Text>
+          </Flex>
+
+          <Flex align="center" gap={3} mb={3} flexWrap="wrap">
+            <Flex
+              w="64px"
+              h="64px"
+              bg="rgba(255,255,255,.12)"
+              border="2px solid rgba(255,255,255,.2)"
+              borderRadius="18px"
+              align="center"
+              justify="center"
+              fontSize="28px"
+              flexShrink={0}
+            >
+              📋
+            </Flex>
+            <Box flex={1}>
+              <Text
+                fontSize={{ base: "22px", md: "36px" }}
+                fontWeight={800}
+                color="white"
+                letterSpacing="-1px"
+                lineHeight="1.1"
+              >
+                {test.title}
+              </Text>
+              {test.examType && (
+                <Badge
+                  mt={2}
+                  px={3}
+                  py={1}
+                  borderRadius="full"
+                  bg="rgba(255,255,255,.15)"
+                  color="white"
+                  fontSize="12px"
+                  fontWeight={700}
+                >
+                  {test.examType}
+                </Badge>
+              )}
+            </Box>
+          </Flex>
+
+          <Flex
+            gap={8}
+            mt={8}
+            borderTop="1px solid rgba(255,255,255,.1)"
+            pt={8}
+            flexWrap="wrap"
+          >
+            {[
+              { icon: FaClipboardList, v: questionCount, l: "Questions" },
+              { icon: FaClock, v: `${timeLimitMin} min`, l: "Duration" },
+              { icon: FaUsers, v: stats?.totalAttempts ?? 0, l: "Attempts" },
+              {
+                icon: FaChartBar,
+                v: stats ? `${stats.avgPercentage}%` : "—",
+                l: "Avg Score",
+              },
+            ].map((s) => (
+              <Flex key={s.l} align="center" gap={3}>
+                <Icon
+                  as={s.icon}
+                  fontSize="14px"
+                  color="rgba(255,255,255,.4)"
+                />
+                <Box>
+                  <Text
+                    fontSize="22px"
+                    fontWeight={800}
+                    color="white"
+                    lineHeight="1"
+                    letterSpacing="-1px"
+                  >
+                    {s.v}
+                  </Text>
+                  <Text
+                    fontSize="10px"
+                    color="rgba(255,255,255,.5)"
+                    textTransform="uppercase"
+                    letterSpacing=".8px"
+                  >
+                    {s.l}
+                  </Text>
+                </Box>
+              </Flex>
+            ))}
+          </Flex>
+        </Box>
+      </Box>
+
+      {/* Body */}
+      <Box maxW="800px" mx="auto" px={{ base: 4, md: 8 }} py={8}>
+        <Grid templateColumns={{ base: "1fr", md: "1fr 340px" }} gap={6}>
+          {/* Left */}
+          <Box>
+            {/* Test Details */}
+            <Box
+              bg="white"
+              borderRadius="16px"
+              border="1px solid #e2e8f0"
+              p={6}
+              mb={5}
+            >
+              <Flex align="center" gap={2} mb={4}>
+                <Icon as={FaInfoCircle} color="#4a72b8" />
+                <Text fontSize="15px" fontWeight={800} color="#0f172a">
+                  Test Details
+                </Text>
+              </Flex>
+              <Grid templateColumns="1fr 1fr" gap={4}>
+                {[
+                  { label: "Questions", value: questionCount },
+                  { label: "Duration", value: `${timeLimitMin} minutes` },
+                  { label: "Language", value: test.language || "English" },
+                  {
+                    label: "Subject",
+                    value: test.subject
+                      ? test.subject.charAt(0).toUpperCase() +
+                        test.subject.slice(1)
+                      : "General",
+                  },
+                  { label: "Exam Type", value: test.examType || "General" },
+                  {
+                    label: "Access",
+                    value: isPrivate ? "🔒 Private" : "🌐 Public",
+                  },
+                  { label: "Marks", value: `${questionCount} marks` },
+                  { label: "Pass Mark", value: "40%" },
+                ].map(({ label, value }) => (
+                  <Box key={label}>
+                    <Text
+                      fontSize="11px"
+                      fontWeight={700}
+                      color="#94a3b8"
+                      textTransform="uppercase"
+                      letterSpacing=".8px"
+                      mb={1}
+                    >
+                      {label}
+                    </Text>
+                    <Text fontSize="14px" fontWeight={600} color="#0f172a">
+                      {value}
+                    </Text>
+                  </Box>
+                ))}
+              </Grid>
+            </Box>
+
+            {/* Instructions */}
+            <Box
+              bg="white"
+              borderRadius="16px"
+              border="1px solid #e2e8f0"
+              p={6}
+            >
+              <Flex align="center" gap={2} mb={4}>
+                <Icon as={FaShieldAlt} color="#4a72b8" />
+                <Text fontSize="15px" fontWeight={800} color="#0f172a">
+                  Instructions
+                </Text>
+              </Flex>
+              <Box bg="#f0f7ff" borderRadius="10px" p={4}>
+                {RULES.map((rule, i) => (
+                  <Flex
+                    key={i}
+                    gap={3}
+                    mb={i < RULES.length - 1 ? 3 : 0}
+                    align="flex-start"
+                  >
+                    <Flex
+                      w="20px"
+                      h="20px"
+                      bg="#4a72b8"
+                      borderRadius="full"
+                      align="center"
+                      justify="center"
+                      flexShrink={0}
+                      mt="1px"
+                    >
+                      <Text fontSize="10px" fontWeight={800} color="white">
+                        {i + 1}
+                      </Text>
+                    </Flex>
+                    <Text fontSize="13px" color="#374151" lineHeight="1.5">
+                      {rule}
+                    </Text>
+                  </Flex>
+                ))}
+              </Box>
+            </Box>
+          </Box>
+
+          {/* Right - Start Card */}
+          <Box>
+            <Box
+              bg="white"
+              borderRadius="16px"
+              border="1px solid #e2e8f0"
+              p={6}
+              textAlign="center"
+              position={{ md: "sticky" }}
+              top={{ md: "20px" }}
+              boxShadow="0 4px 24px rgba(0,0,0,.06)"
+            >
+              {myResult ? (
+                <Box
+                  mb={4}
+                  p={3}
+                  bg="#f0fdf4"
+                  borderRadius="10px"
+                  border="1px solid #86efac"
+                >
+                  <Text fontSize="12px" fontWeight={700} color="#16a34a" mb={1}>
+                    Previous Attempt
+                  </Text>
+                  <Text
+                    fontSize="28px"
+                    fontWeight={800}
+                    color="#16a34a"
+                    letterSpacing="-1px"
+                  >
+                    {(
+                      myResult.scorePercentage ??
+                      myResult.percentage ??
+                      0
+                    ).toFixed(0)}
+                    %
+                  </Text>
+                  <Text fontSize="12px" color="#64748b">
+                    {myResult.correct ?? myResult.correctQus?.length ?? 0}/
+                    {questionCount} correct
+                  </Text>
+                </Box>
+              ) : (
+                <Box mb={5}>
+                  <Box fontSize="48px" mb={3}>
+                    🎯
+                  </Box>
+                  <Text fontSize="16px" fontWeight={700} color="#0f172a" mb={1}>
+                    Ready to begin?
+                  </Text>
+                  <Text fontSize="13px" color="#64748b">
+                    {questionCount} questions · {timeLimitMin} min time limit
+                  </Text>
+                </Box>
+              )}
+
+              {!user ? (
+                <>
+                  <Text fontSize="13px" color="#64748b" mb={4}>
+                    Please sign in to take this test
+                  </Text>
+                  <Button
+                    w="full"
+                    h="50px"
+                    borderRadius="12px"
+                    bg="linear-gradient(135deg,#4a72b8,#1e3a5f)"
+                    color="white"
+                    fontWeight={800}
+                    fontSize="15px"
+                    leftIcon={<FaPlay />}
+                    onClick={handleStartClick}
+                    _hover={{
+                      opacity: 0.9,
+                      transform: "translateY(-2px)",
+                      boxShadow: "0 8px 24px rgba(74,114,184,.35)",
+                    }}
+                    transition="all .2s"
+                    mb={3}
+                  >
+                    Sign In to Start
+                  </Button>
+                  <Button
+                    w="full"
+                    h="42px"
+                    borderRadius="12px"
+                    variant="outline"
+                    borderColor="#4a72b8"
+                    color="#4a72b8"
+                    fontWeight={700}
+                    fontSize="14px"
+                    onClick={() => {
+                      const returnPath = location.pathname + location.search;
+                      navigate(
+                        `/auth/signup?redirect=${encodeURIComponent(returnPath)}`,
+                      );
+                    }}
+                    _hover={{ bg: "#eff6ff" }}
+                  >
+                    Create Account
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  w="full"
+                  h="54px"
+                  borderRadius="12px"
+                  bg="linear-gradient(135deg,#4a72b8,#1e3a5f)"
+                  color="white"
+                  fontWeight={800}
+                  fontSize="16px"
+                  leftIcon={<FaPlay />}
+                  onClick={handleStartClick}
+                  _hover={{
+                    opacity: 0.9,
+                    transform: "translateY(-2px)",
+                    boxShadow: "0 8px 24px rgba(74,114,184,.35)",
+                  }}
+                  transition="all .2s"
+                >
+                  {myResult ? "Retake Test" : "Start Test"}
+                </Button>
+              )}
+
+              {user && (
+                <Text fontSize="11px" color="#94a3b8" mt={3}>
+                  Logged in as {user.Name || user.Email}
+                </Text>
+              )}
+            </Box>
+
+            {/* Quick Stats */}
+            {stats && stats.totalAttempts > 0 && (
+              <Box
+                bg="white"
+                borderRadius="16px"
+                border="1px solid #e2e8f0"
+                p={5}
+                mt={4}
+              >
+                <Text
+                  fontSize="12px"
+                  fontWeight={700}
+                  color="#94a3b8"
+                  textTransform="uppercase"
+                  letterSpacing=".8px"
+                  mb={4}
+                >
+                  Test Stats
+                </Text>
+                {[
+                  {
+                    label: "Attempts",
+                    value: stats.totalAttempts,
+                    color: "#4a72b8",
+                  },
+                  {
+                    label: "Pass Rate",
+                    value: `${stats.passRate}%`,
+                    color: "#16a34a",
+                  },
+                  {
+                    label: "Avg Score",
+                    value: `${stats.avgPercentage}%`,
+                    color: "#7c3aed",
+                  },
+                  {
+                    label: "Top Score",
+                    value: `${stats.highestScore}%`,
+                    color: "#ea580c",
+                  },
+                ].map(({ label, value, color }) => (
+                  <Flex
+                    key={label}
+                    justify="space-between"
+                    align="center"
+                    mb={3}
+                  >
+                    <Text fontSize="13px" color="#64748b">
+                      {label}
+                    </Text>
+                    <Text fontSize="14px" fontWeight={800} color={color}>
+                      {value}
+                    </Text>
+                  </Flex>
+                ))}
+              </Box>
+            )}
+          </Box>
+        </Grid>
+      </Box>
+    </Box>
+  );
+}
+
 // ═══════════════════════════════════════════════════════
 // MAIN PAGE
 // ═══════════════════════════════════════════════════════
 export default function TestDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const toast = useToast();
   const cancelRef = useRef();
   const user = getCurrentUser();
@@ -206,14 +654,12 @@ export default function TestDetailPage() {
   const [leaderboard, setLeaderboard] = useState([]);
   const [myResult, setMyResult] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState("overview"); // overview | leaderboard | questions
+  const [tab, setTab] = useState("info"); // info | leaderboard | questions
   const [copied, setCopied] = useState(false);
   const [pwOpen, setPwOpen] = useState(false);
   const [pwInput, setPwInput] = useState("");
   const [pwErr, setPwErr] = useState("");
   const [delOpen, setDelOpen] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(null); // seconds until test starts
-  const [canStart, setCanStart] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -227,26 +673,10 @@ export default function TestDetailPage() {
       setStats(statsRes.data);
       setLeaderboard(lbRes.data || []);
 
-      // My result
       if (user?._id) {
         apiFetch(`/results/student/${user._id}?testId=${id}`)
           .then((r) => setMyResult(r.data?.[0] || null))
           .catch(() => {});
-      }
-
-      // Time gate: allow entry 5 min before startsAt
-      if (t.startsAt) {
-        const starts = new Date(t.startsAt).getTime();
-        const now = Date.now();
-        const diff = starts - now;
-        if (diff > 5 * 60 * 1000) {
-          setCanStart(false);
-          setTimeLeft(Math.floor(diff / 1000));
-        } else {
-          setCanStart(true);
-        }
-      } else {
-        setCanStart(true); // no scheduled start = available now
       }
     } catch (e) {
       toast({ title: e.message, status: "error" });
@@ -258,17 +688,6 @@ export default function TestDetailPage() {
   useEffect(() => {
     load();
   }, [load]);
-
-  // Countdown timer for scheduled tests
-  useEffect(() => {
-    if (timeLeft === null || canStart) return;
-    if (timeLeft <= 0) {
-      setCanStart(true);
-      return;
-    }
-    const t = setTimeout(() => setTimeLeft((v) => v - 1), 1000);
-    return () => clearTimeout(t);
-  }, [timeLeft, canStart]);
 
   if (loading)
     return (
@@ -294,7 +713,6 @@ export default function TestDetailPage() {
     (String(user._id) === String(test.createdBy) ||
       String(user._id) === String(test.createdBy?._id)),
   );
-
   const isPrivate =
     test.visibility === "private" || test.accessType === "private";
   const timeLimitMin = test.timeLimitMin || test.timeLimit || 30;
@@ -310,9 +728,30 @@ export default function TestDetailPage() {
     });
   };
 
+  // The actual function to launch the test (prep localStorage then navigate)
+  const launchTest = () => {
+    if (!test.questions || test.questions.length === 0) {
+      toast({ title: "This test has no questions", status: "error" });
+      return;
+    }
+
+    // ✅ CRITICAL: Set Testdata as empty array [] so TakeTest uses COUNT-UP timer
+    // If we set it as [test] (length=1), Testdata.length > 1 check is false, so COUNT-UP
+    // The timer logic: Testdata.length > 1 → countdown, else → count up
+    setLS("savedTestQuestions", test.questions);
+    setLS("category", test.title);
+    setLS("Subject", test.subject || "general");
+    setLS("currentTestId", test._id);
+    setLS("Testdata", []); // ✅ Empty array = single test = COUNT-UP timer, no auto-submit
+    setLS("currentTestTimeLimitMin", timeLimitMin); // Store time limit for custom usage
+
+    navigate("/test");
+  };
+
   const handleStartTest = () => {
     if (!user) {
-      navigate("/auth/signin");
+      const returnPath = location.pathname + location.search;
+      navigate(`/auth/signin?redirect=${encodeURIComponent(returnPath)}`);
       return;
     }
     if (isPrivate && !isOwner) {
@@ -320,16 +759,6 @@ export default function TestDetailPage() {
       return;
     }
     launchTest();
-  };
-
-  const launchTest = () => {
-    // Store test data in localStorage so TakeTest can pick it up
-    setLocalStorage("savedTestQuestions", test.questions);
-    setLocalStorage("category", test.title);
-    setLocalStorage("Subject", test.subject || "general");
-    setLocalStorage("currentTestId", test._id);
-    setLocalStorage("Testdata", [test]); // single test = count-up timer
-    navigate("/test");
   };
 
   const verifyPassword = () => {
@@ -351,19 +780,79 @@ export default function TestDetailPage() {
     }
   };
 
-  const fmtTime = (sec) => {
-    const h = Math.floor(sec / 3600);
-    const m = Math.floor((sec % 3600) / 60);
-    const s = sec % 60;
-    if (h > 0) return `${h}h ${m}m ${s}s`;
-    if (m > 0) return `${m}m ${s}s`;
-    return `${s}s`;
-  };
+  // If tab is "info" (default), show the full-page info/landing view
+  if (tab === "info" && !isOwner) {
+    return (
+      <>
+        <TestInfoPage
+          test={test}
+          stats={stats}
+          onStart={handleStartTest}
+          user={user}
+          myResult={myResult}
+        />
+        {/* Password Modal */}
+        <Modal isOpen={pwOpen} onClose={() => setPwOpen(false)} isCentered>
+          <ModalOverlay backdropFilter="blur(4px)" />
+          <ModalContent
+            borderRadius="16px"
+            fontFamily="'Sora',sans-serif"
+            mx={4}
+          >
+            <ModalHeader>
+              <Flex align="center" gap={2}>
+                <Icon as={FaLock} color="#4a72b8" />
+                <Text>Enter Test Password</Text>
+              </Flex>
+            </ModalHeader>
+            <ModalCloseButton />
+            <ModalBody pb={2}>
+              <Input
+                placeholder="Password"
+                type="password"
+                value={pwInput}
+                onChange={(e) => {
+                  setPwInput(e.target.value);
+                  setPwErr("");
+                }}
+                onKeyDown={(e) => e.key === "Enter" && verifyPassword()}
+                borderColor={pwErr ? "red.400" : "#e2e8f0"}
+                borderRadius="10px"
+                h="44px"
+                _focus={{
+                  borderColor: "#4a72b8",
+                  boxShadow: "0 0 0 1px #4a72b8",
+                }}
+              />
+              {pwErr && (
+                <Text fontSize="12px" color="red.500" mt={1}>
+                  {pwErr}
+                </Text>
+              )}
+            </ModalBody>
+            <ModalFooter gap={3}>
+              <Button variant="ghost" onClick={() => setPwOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                bg="#4a72b8"
+                color="white"
+                borderRadius="10px"
+                fontWeight={700}
+                onClick={verifyPassword}
+                _hover={{ bg: "#3b5fa0" }}
+              >
+                Enter Test
+              </Button>
+            </ModalFooter>
+          </ModalContent>
+        </Modal>
+      </>
+    );
+  }
 
-  const TABS = [
-    "overview",
-    ...(isOwner ? ["leaderboard", "questions"] : ["leaderboard"]),
-  ];
+  // Owner view — full dashboard
+  const TABS = ["overview", "leaderboard", ...(isOwner ? ["questions"] : [])];
 
   return (
     <Box minH="100vh" bg="#f8fafc" fontFamily="'Sora',sans-serif">
@@ -385,9 +874,7 @@ export default function TestDetailPage() {
           borderRadius="full"
           bg="rgba(255,255,255,.03)"
         />
-
         <Box maxW="1100px" mx="auto" position="relative" zIndex={1}>
-          {/* Back */}
           <Flex
             align="center"
             gap={2}
@@ -396,7 +883,6 @@ export default function TestDetailPage() {
             w="fit-content"
             color="rgba(255,255,255,.5)"
             _hover={{ color: "rgba(255,255,255,.9)" }}
-            transition="color .15s"
             onClick={() => navigate(-1)}
           >
             <Icon as={FaArrowLeft} fontSize="12px" />
@@ -497,7 +983,6 @@ export default function TestDetailPage() {
                 </Flex>
               </Flex>
 
-              {/* Stats */}
               <Flex
                 gap={8}
                 borderTop="1px solid rgba(255,255,255,.1)"
@@ -644,171 +1129,8 @@ export default function TestDetailPage() {
 
       {/* ── BODY ── */}
       <Box maxW="1100px" mx="auto" px={{ base: 4, md: 8 }} py={8}>
-        {/* ── My Result Banner ── */}
-        {myResult && (
-          <Box
-            mb={6}
-            bg="white"
-            borderRadius="14px"
-            border="1px solid #e2e8f0"
-            p={5}
-            borderLeft="4px solid #4a72b8"
-          >
-            <Flex
-              align="center"
-              justify="space-between"
-              flexWrap="wrap"
-              gap={3}
-            >
-              <Flex align="center" gap={3}>
-                <Flex
-                  w="44px"
-                  h="44px"
-                  bg="#eff6ff"
-                  borderRadius="12px"
-                  align="center"
-                  justify="center"
-                >
-                  <Icon as={FaAward} color="#4a72b8" fontSize="18px" />
-                </Flex>
-                <Box>
-                  <Text fontSize="13px" fontWeight={800} color="#0f172a">
-                    Your Previous Score
-                  </Text>
-                  <Text fontSize="12px" color="#64748b">
-                    {myResult.correct ?? myResult.correctQus?.length ?? 0}/
-                    {myResult.totalQuestions} correct
-                  </Text>
-                </Box>
-              </Flex>
-              <Flex align="center" gap={4}>
-                <Box textAlign="center">
-                  <Text
-                    fontSize="28px"
-                    fontWeight={800}
-                    color="#4a72b8"
-                    letterSpacing="-1px"
-                  >
-                    {(
-                      myResult.scorePercentage ??
-                      myResult.percentage ??
-                      0
-                    ).toFixed(0)}
-                    %
-                  </Text>
-                  <Badge
-                    colorScheme={
-                      (myResult.scorePercentage ?? 0) >= 40 ? "green" : "red"
-                    }
-                    borderRadius="full"
-                  >
-                    {(myResult.scorePercentage ?? 0) >= 40
-                      ? "Passed"
-                      : "Failed"}
-                  </Badge>
-                </Box>
-                <Button
-                  size="sm"
-                  onClick={() => navigate("/test-result")}
-                  variant="outline"
-                  colorScheme="blue"
-                  borderRadius="9px"
-                  fontWeight={700}
-                >
-                  View Result
-                </Button>
-              </Flex>
-            </Flex>
-          </Box>
-        )}
-
-        {/* ── Start Test Card ── */}
-        {!isOwner && (
-          <Box
-            mb={6}
-            bg="white"
-            borderRadius="16px"
-            border="1px solid #e2e8f0"
-            p={6}
-            textAlign="center"
-          >
-            {!canStart && timeLeft !== null ? (
-              <>
-                <Icon
-                  as={FaClock}
-                  fontSize="40px"
-                  color="#94a3b8"
-                  mb={3}
-                  display="block"
-                  mx="auto"
-                />
-                <Text fontSize="16px" fontWeight={700} color="#374151" mb={1}>
-                  Test starts soon
-                </Text>
-                <Text fontSize="13px" color="#94a3b8" mb={4}>
-                  You can join 5 minutes before the test starts
-                </Text>
-                <Text
-                  fontSize="36px"
-                  fontWeight={800}
-                  color="#4a72b8"
-                  letterSpacing="-2px"
-                  mb={4}
-                  fontFamily="monospace"
-                >
-                  {fmtTime(timeLeft)}
-                </Text>
-                <Text fontSize="11px" color="#94a3b8">
-                  Test will be available at{" "}
-                  {new Date(test.startsAt).toLocaleTimeString()}
-                </Text>
-              </>
-            ) : (
-              <>
-                <Icon
-                  as={FaPlay}
-                  fontSize="36px"
-                  color="#4a72b8"
-                  mb={3}
-                  display="block"
-                  mx="auto"
-                />
-                <Text fontSize="16px" fontWeight={700} color="#0f172a" mb={1}>
-                  {myResult ? "Retake Test" : "Start Test"}
-                </Text>
-                <Text fontSize="13px" color="#64748b" mb={5}>
-                  {test.questions?.length} questions · {timeLimitMin} minutes
-                </Text>
-                <Button
-                  h="50px"
-                  px={10}
-                  borderRadius="12px"
-                  bg="linear-gradient(135deg,#4a72b8,#1e3a5f)"
-                  color="white"
-                  fontWeight={800}
-                  fontSize="15px"
-                  leftIcon={<FaPlay />}
-                  onClick={handleStartTest}
-                  _hover={{
-                    opacity: 0.9,
-                    transform: "translateY(-2px)",
-                    boxShadow: "0 8px 24px rgba(74,114,184,.35)",
-                  }}
-                  transition="all .2s"
-                >
-                  {user
-                    ? myResult
-                      ? "Retake Test"
-                      : "Start Test"
-                    : "Sign In to Start"}
-                </Button>
-              </>
-            )}
-          </Box>
-        )}
-
-        {/* ── Tabs ── */}
-        <Flex gap={2} mb={6}>
+        {/* Tabs */}
+        <Flex gap={2} mb={6} flexWrap="wrap">
           {TABS.map((t) => (
             <Box
               key={t}
@@ -834,7 +1156,7 @@ export default function TestDetailPage() {
           ))}
         </Flex>
 
-        {/* ── Overview Tab ── */}
+        {/* Overview */}
         {tab === "overview" && (
           <Grid
             templateColumns={{
@@ -843,7 +1165,6 @@ export default function TestDetailPage() {
               lg: "repeat(4,1fr)",
             }}
             gap={4}
-            mb={6}
           >
             <StatCard
               icon={FaUsers}
@@ -874,7 +1195,7 @@ export default function TestDetailPage() {
           </Grid>
         )}
 
-        {/* ── Leaderboard Tab ── */}
+        {/* Leaderboard */}
         {tab === "leaderboard" && (
           <Box
             bg="white"
@@ -930,7 +1251,7 @@ export default function TestDetailPage() {
           </Box>
         )}
 
-        {/* ── Questions Tab (owner only) ── */}
+        {/* Questions (owner only) */}
         {tab === "questions" && isOwner && (
           <Box
             bg="white"
@@ -994,7 +1315,7 @@ export default function TestDetailPage() {
         )}
       </Box>
 
-      {/* ── Password Modal ── */}
+      {/* Password Modal */}
       <Modal isOpen={pwOpen} onClose={() => setPwOpen(false)} isCentered>
         <ModalOverlay backdropFilter="blur(4px)" />
         <ModalContent borderRadius="16px" fontFamily="'Sora',sans-serif" mx={4}>
@@ -1047,7 +1368,7 @@ export default function TestDetailPage() {
         </ModalContent>
       </Modal>
 
-      {/* ── Delete Dialog ── */}
+      {/* Delete Dialog */}
       <AlertDialog
         isOpen={delOpen}
         leastDestructiveRef={cancelRef}

@@ -1,219 +1,20 @@
-// import React, { useEffect, useState } from "react";
-// import {
-//   Container,
-//   Heading,
-//   Box,
-//   FormLabel,
-//   FormControl,
-//   Input,
-//   Button,
-//   Text,
-//   Alert,
-//   AlertIcon,
-// } from "@chakra-ui/react";
-// import { Link, useNavigate } from "react-router-dom";
-// // import { signInApi } from "../apis/auth";
-// import { getCookies } from "../helpers/cookies";
-// // import { useDispatch, useSelector } from "react-redux";
-// // import { signInApi } from "../redux/signIn/signIn.ActionType";
-// const Signin = ({ message, setMessage,checkNavigation,setCheckNavigation }) => {
-//   const navigate = useNavigate();
-//   // const dispatch = useDispatch();
-//   // const { signInSuccess } = useSelector((state) => state.signInReducer);
-//   // const [forgotPassword,setForgotPassword] = useState
-//   const [signinData, setSigninData] = useState({
-//     Email: null,
-//     Password: null,
-//   });
-
-// const handleKeyDown = (event) => {
-//   console.log("hghfdss");
-//   if(event.key==="Enter"){
-//     console.log("hghghhfh");
-//     handleSubmit()
-//   }
-// }
-//   const handleSubmit = async () => {
-//     // try {
-
-//       if (
-//         signinData.Email!==null&&
-//         signinData.Password !== null
-//       ) {    if(signinData.Email.includes("@gmail.com")){
-//       // dispatch(signInApi(signinData,setMessage))
-//         // onsole.log(checkSignup);
-//         const checkCookie = await getCookies("_user");console.log("in",signinData,signInSuccess,checkCookie);
-//         if (signInSuccess!==false&&checkCookie!==null) {
-//           setCheckNavigation(true)
-//         }
-//       }else{
-//          setMessage("Email is Required");
-//       }
-//       } else {
-//         setMessage("All fields are Required")
-//       }
-//     // } catch (error) {
-//     //   console.log(error);
-//     // }
-//   };
-//  useEffect(() => {
-//    if (signInSuccess && message !== null) {
-//      const navigateTimeOut = setTimeout(() => {
-//        setMessage(null);
-//        setCheckNavigation(false);
-//        navigate("/");
-//      }, 3000);
-//      if (checkNavigation === false && message === null) {
-//        clearTimeout(navigateTimeOut);
-//      }
-//    } else {
-//      const messageTimeOut = setTimeout(() => {
-//        console.log("lh");
-//        setMessage(null);
-//      }, 5000);
-//      if (message === null) {
-//        clearTimeout(messageTimeOut);
-//      }
-//    }
-//  }, [checkNavigation, navigate, message,signInSuccess]);
-//   return (
-//     <>
-//       {signInSuccess && message !== null ? (
-//         <Alert over status="success">
-//           <AlertIcon />
-//           {message}
-//         </Alert>
-//       ) : message !== null ? (
-//         <Alert status="error">
-//           <AlertIcon />
-//           {message}
-//         </Alert>
-//       ) : null}
-
-//       <Container
-//         mt={"3%"}
-//         borderRadius={"20px"}
-//         maxW={{ base: "90%", md: "65%", lg: "40%" }}
-//         p={"2% 4% 4% 4%"}
-//         // bg={"whitesmoke"}
-//       >
-//         <Heading
-//           textAlign={"center"}
-//           mb={"11%"}
-//           // bg={"whitesmoke"}
-//         >
-//           Signin
-//         </Heading>
-//         <FormControl
-//         // bg={"whitesmoke"}
-//         >
-//           <Box
-//           // bg={"whitesmoke"}
-//           >
-//             <FormLabel
-//             // bg={"whitesmoke"}
-//             >
-//               Email
-//             </FormLabel>
-//             <Input
-//               type={"email"}
-//               required={true}
-//               // bg={"whitesmoke"}
-//               placeholder={"Enter your Email"}
-//               onKeyDown={handleKeyDown}
-//               onChange={(e) =>
-//                 setSigninData({ ...signinData, Email: e.target.value })
-//               }
-//             />
-//           </Box>
-//           <Box
-//             //  bg={"whitesmoke"}
-//             mt={"3%"}
-//           >
-//             <FormLabel
-//             //  bg={"whitesmoke"}
-//             >
-//               Password
-//             </FormLabel>
-//             <Input
-//               type={"password"}
-//               required={true}
-//               // bg={"whitesmoke"}
-//               placeholder={"Enter your Password"}
-//               onKeyDown={handleKeyDown}
-//               onChange={(e) =>
-//                 setSigninData({ ...signinData, Password: e.target.value })
-//               }
-//             />
-//             <Link to={"/auth/forgotPassword"}>
-//               <Text
-//                 fontSize={"12px"}
-//                 cursor={"pointer"}
-//                 textAlign={"right"}
-//                 color={"#1f4985"}
-//               >
-//                 Forgot Password?
-//               </Text>
-//             </Link>
-//           </Box>
-//           <Box
-//             // bg={"whitesmoke"}
-//             mt={"7%"}
-//           >
-//             <Text
-//               //  bg={"whitesmoke"}
-//               fontSize={"md"}
-//             >
-//               Don't have account?{" "}
-//               <Link to="/auth/signup">
-//                 <Text
-//                   as={"span"}
-//                   cursor={"pointer"}
-//                   textDecoration={"underline"}
-//                   color="#1f4985"
-//                 >
-//                   Click Here for SignUp
-//                 </Text>
-//               </Link>
-//             </Text>
-//           </Box>{" "}
-//           <Button
-//             w={"100%"}
-//             mt={"3%"}
-//             colorScheme={"teal"}
-//             bg={"#4285f4"}
-//             // spinner={<BeatLoader size={8} color='white' />}
-//             onClick={() => handleSubmit()}
-//             // onKeyDown={handleKeyDown}
-//           >
-//             Submit
-//           </Button>
-//         </FormControl>
-//       </Container>
-//     </>
-//   );
-// };
-
-// export default Signin;
-
-import React, { useEffect, useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
-  Container,
-  Heading,
   Box,
-  FormLabel,
-  FormControl,
-  Input,
   Button,
+  Flex,
+  FormControl,
+  FormLabel,
+  Input,
   Text,
-  Alert,
-  AlertIcon,
+  useToast,
+  Icon,
   InputGroup,
   InputRightElement,
   IconButton,
 } from "@chakra-ui/react";
-import { Link, useNavigate } from "react-router-dom";
-import { signInApi } from "../apis/auth";
+import { Link, useNavigate, useLocation } from "react-router-dom";
+import { signInApi } from "../services/testService";
 import { FaEye, FaEyeSlash } from "react-icons/fa";
 
 const Signin = ({
@@ -223,156 +24,198 @@ const Signin = ({
   setCheckNavigation,
 }) => {
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(false);
-  const [signInSuccess, setSignInSuccess] = useState(false);
+  const location = useLocation();
+  const toast = useToast();
   const [showPassword, setShowPassword] = useState(false);
-  const [signinData, setSigninData] = useState({
-    Email: "",
-    Password: "",
-  });
+  const [form, setForm] = useState({ email: "", password: "" });
+  const [loading, setLoading] = useState(false);
 
-  const handleKeyDown = (e) => {
-    if (e.key === "Enter") handleSubmit();
-  };
+  // Get redirect URL from query param or state
+  const params = new URLSearchParams(location.search);
+  const redirectTo = params.get("redirect") || location.state?.from || "/";
 
-  const handleSubmit = async () => {
-    if (!signinData.Email || !signinData.Password) {
-      setMessage("All fields are Required");
-      return;
-    }
-    if (!signinData.Email.includes("@")) {
-      setMessage("Enter a valid email");
-      return;
-    }
+  const handleSubmit = async (e) => {
+    e.preventDefault();
     setLoading(true);
-    const success = await signInApi(signinData, setMessage);
-    setLoading(false);
-    if (success) {
-      setSignInSuccess(true);
-      setCheckNavigation(true);
+    try {
+      const success = await signInApi(form, setMessage);
+      if (success) {
+        toast({
+          title: "Signed in successfully!",
+          status: "success",
+          duration: 2000,
+        });
+        // Redirect back to where user came from
+        navigate(decodeURIComponent(redirectTo), { replace: true });
+      } else {
+        toast({
+          title: message || "Sign in failed",
+          status: "error",
+          duration: 3000,
+        });
+      }
+    } catch (err) {
+      toast({ title: "Something went wrong", status: "error" });
+    } finally {
+      setLoading(false);
     }
   };
 
-  useEffect(() => {
-    if (!signInSuccess || !checkNavigation) return;
-    const timer = setTimeout(() => {
-      setMessage(null);
-      setCheckNavigation(false);
-      navigate("/");
-    }, 1500);
-    return () => clearTimeout(timer);
-  }, [
-    signInSuccess,
-    checkNavigation,
-    navigate,
-    setMessage,
-    setCheckNavigation,
-  ]);
-
-  useEffect(() => {
-    if (!message || signInSuccess) return;
-    const timer = setTimeout(() => setMessage(null), 5000);
-    return () => clearTimeout(timer);
-  }, [message, signInSuccess, setMessage]);
+  const sf = (k) => (e) => setForm((p) => ({ ...p, [k]: e.target.value }));
 
   return (
-    <>
-      {message && (
-        <Alert status={signInSuccess ? "success" : "error"} mb={0}>
-          <AlertIcon />
-          {message}
-        </Alert>
-      )}
-
-      <Container
-        mt="3%"
+    <Flex
+      minH="100vh"
+      align="center"
+      justify="center"
+      bg="#f8fafc"
+      fontFamily="'Sora', sans-serif"
+    >
+      <Box
+        w={{ base: "full", sm: "440px" }}
+        mx={4}
+        bg="white"
         borderRadius="20px"
-        maxW={{ base: "90%", md: "65%", lg: "40%" }}
-        p="2% 4% 4% 4%"
+        boxShadow="0 20px 60px rgba(0,0,0,.1)"
+        p={{ base: 6, md: 10 }}
       >
-        <Heading textAlign="center" mb="11%">
-          Sign In
-        </Heading>
+        <Box textAlign="center" mb={8}>
+          <Box
+            w="52px"
+            h="52px"
+            bg="linear-gradient(135deg,#4a72b8,#1e3a5f)"
+            borderRadius="14px"
+            display="flex"
+            alignItems="center"
+            justifyContent="center"
+            mx="auto"
+            mb={4}
+            fontSize="22px"
+          >
+            📋
+          </Box>
+          <Text fontSize="24px" fontWeight={800} color="#0f172a" mb={1}>
+            Welcome back
+          </Text>
+          <Text fontSize="14px" color="#64748b">
+            Sign in to continue
+            {redirectTo && redirectTo !== "/" && (
+              <Text as="span" color="#4a72b8" fontWeight={600}>
+                {" "}
+                to your test
+              </Text>
+            )}
+          </Text>
+        </Box>
 
-        <FormControl>
-          <Box>
-            <FormLabel>Email</FormLabel>
+        <form onSubmit={handleSubmit}>
+          <FormControl mb={4}>
+            <FormLabel
+              fontSize="12px"
+              fontWeight={700}
+              color="#374151"
+              textTransform="uppercase"
+              letterSpacing=".8px"
+            >
+              Email
+            </FormLabel>
             <Input
               type="email"
-              placeholder="Enter your Email"
-              value={signinData.Email}
-              onKeyDown={handleKeyDown}
-              onChange={(e) =>
-                setSigninData({ ...signinData, Email: e.target.value })
-              }
+              value={form.email}
+              onChange={sf("email")}
+              placeholder="you@example.com"
+              h="46px"
+              borderRadius="10px"
+              borderColor="#e2e8f0"
+              fontSize="14px"
+              required
+              _focus={{
+                borderColor: "#4a72b8",
+                boxShadow: "0 0 0 1px #4a72b8",
+              }}
             />
-          </Box>
+          </FormControl>
 
-          <Box mt="3%">
-            <FormLabel>Password</FormLabel>
+          <FormControl mb={6}>
+            <FormLabel
+              fontSize="12px"
+              fontWeight={700}
+              color="#374151"
+              textTransform="uppercase"
+              letterSpacing=".8px"
+            >
+              Password
+            </FormLabel>
             <InputGroup>
               <Input
                 type={showPassword ? "text" : "password"}
-                placeholder="Enter your Password"
-                value={signinData.Password}
-                onKeyDown={handleKeyDown}
-                onChange={(e) =>
-                  setSigninData({ ...signinData, Password: e.target.value })
-                }
+                value={form.password}
+                onChange={sf("password")}
+                placeholder="••••••••"
+                h="46px"
+                borderRadius="10px"
+                borderColor="#e2e8f0"
+                fontSize="14px"
+                required
+                _focus={{
+                  borderColor: "#4a72b8",
+                  boxShadow: "0 0 0 1px #4a72b8",
+                }}
               />
-              <InputRightElement>
+              <InputRightElement h="46px">
                 <IconButton
-                  size="sm"
-                  variant="ghost"
-                  aria-label="Toggle password"
                   icon={showPassword ? <FaEyeSlash /> : <FaEye />}
-                  onClick={() => setShowPassword((p) => !p)}
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowPassword(!showPassword)}
+                  aria-label="Toggle password"
                 />
               </InputRightElement>
             </InputGroup>
-            <Link to="/auth/forgotPassword">
-              <Text
-                fontSize="12px"
-                cursor="pointer"
-                textAlign="right"
-                color="#1f4985"
-                mt={1}
-              >
-                Forgot Password?
-              </Text>
-            </Link>
-          </Box>
-
-          <Box mt="7%">
-            <Text fontSize="md">
-              Don't have an account?{" "}
-              <Link to="/auth/signup">
-                <Text
-                  as="span"
-                  cursor="pointer"
-                  textDecoration="underline"
-                  color="#1f4985"
-                >
-                  Click Here for SignUp
-                </Text>
-              </Link>
-            </Text>
-          </Box>
+          </FormControl>
 
           <Button
-            w="100%"
-            mt="3%"
-            colorScheme="teal"
-            bg="#4285f4"
+            type="submit"
+            w="full"
+            h="50px"
+            borderRadius="12px"
+            bg="linear-gradient(135deg,#4a72b8,#1e3a5f)"
+            color="white"
+            fontWeight={800}
+            fontSize="15px"
             isLoading={loading}
-            loadingText="Signing in..."
-            onClick={handleSubmit}
+            loadingText="Signing in…"
+            _hover={{
+              opacity: 0.9,
+              transform: "translateY(-1px)",
+              boxShadow: "0 8px 24px rgba(74,114,184,.35)",
+            }}
+            transition="all .2s"
           >
             Sign In
           </Button>
-        </FormControl>
-      </Container>
-    </>
+        </form>
+
+        <Flex mt={6} justify="center" gap={1} fontSize="14px">
+          <Text color="#64748b">Don't have an account?</Text>
+          <Link
+            to={`/auth/signup${redirectTo !== "/" ? `?redirect=${encodeURIComponent(redirectTo)}` : ""}`}
+            style={{ color: "#4a72b8", fontWeight: 700 }}
+          >
+            Sign up
+          </Link>
+        </Flex>
+
+        <Flex mt={2} justify="center">
+          <Link
+            to="/auth/forgotPassword"
+            style={{ color: "#94a3b8", fontSize: "13px" }}
+          >
+            Forgot password?
+          </Link>
+        </Flex>
+      </Box>
+    </Flex>
   );
 };
 

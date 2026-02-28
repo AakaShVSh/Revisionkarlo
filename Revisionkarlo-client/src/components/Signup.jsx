@@ -1,484 +1,264 @@
-// import React, { useEffect, useState } from "react";
-// import {
-//   Container,
-//   Heading,
-//   Box,
-//   FormLabel,
-//   FormControl,
-//   Input,
-//   Button,
-//   Text,
-//   Checkbox,
-//   Spacer,
-//   AlertIcon,
-//   Alert,
-// } from "@chakra-ui/react";
-
-// import { Link, useNavigate } from "react-router-dom";
-// // import { signUpApi } from "../apis/auth";
-// import { getCookies } from "../helpers/cookies";
-// // import { useDispatch, useSelector } from "react-redux";
-// // import { signupApi } from "../redux/signUp/signup_ActionType";
-// const Signup = ({message,setMessage,checkNavigation,setCheckNavigation}) => {
-//   const [cmpPassword, setScmpPassword] = useState(null);
-//   const navigate = useNavigate();
-//   // const dispatch = useDispatch();
-// //  const { signupMessage, signupSuccess, data } = useSelector(
-// //    (state) => state.signupReducer
-// //  );
-//   const [signUpData, setSignUpData] = useState({
-//     Email: null,
-//     Password: null,
-//   });
-// const handleKeyDown = (event) => {
-//   console.log("hghfdss");
-//   if (event.key === "Enter") {
-//     console.log("hghghhfh");
-//     handleSignup();
-//   }
-// };
-//   const handleSignup = async () => {
-//     // if (data.Email.includes("@gmail.com") && data.Email !== "") {
-//     //   if (data.Password === cmpPassword && data.Password !== "") {
-//     //
-//     //   } else {
-//     //     alert("Password and Confirm Password should be same");
-//     //   }
-//     // } else {
-//     //   alert("It should be Email only");
-//     // }
-
-//     // if (
-//     //   signUpData.Email !== null &&
-//     //   signUpData.Password !== null &&
-//     //   cmpPassword !== null
-//     // ) {
-//     //   if (signUpData.Email.includes("@gmail.com")) {
-//     //     if (signUpData.Password === cmpPassword) {
-//           const checkSignup = await signUpApi(signUpData, cmpPassword, setMessage);
-//     //       const checkCookie = await getCookies("_user");
-//     //       console.log(checkSignup, checkCookie);
-//     //       if (checkCookie !== null && checkSignup !== false) {
-
-//     //         setCheckNavigation(true);
-//     //       }
-//     //     } else {
-//     //       setMessage("Password and Confirm Password should be same");
-//     //     }
-//     //   } else {
-//     //     setMessage("Email is Required");
-//     //   }
-//     // } else {
-//     //   setMessage("All fields are Required");
-//     // }
-
-//     if (
-//       signUpData.Email !== null &&
-//       signUpData.Password !== null &&
-//       cmpPassword !== null
-//     ) {
-//       if (signUpData.Email.includes("@gmail.com")) {
-//         if (signUpData.Password === cmpPassword) {
-
-//     // dispatch(signupApi(signUpData,setMessage));
-//           const checkCookie = await getCookies("_user");
-//           console.log( checkCookie);
-//           if (checkCookie !== null && signupSuccess !== false) {
-
-//             setCheckNavigation(true);
-//           }
-//         } else {
-//           setMessage("Password and Confirm Password should be same");
-//         }
-//       } else {
-//         setMessage("Email is Required");
-//       }
-//     } else {
-//       setMessage("All fields are Required");
-//     }
-//   };
-//   useEffect(() => {
-//     if (signupSuccess && message !== null) {
-//       const navigateTimeOut = setTimeout(() => {
-//         setMessage(null);
-//         setCheckNavigation(false);
-//         navigate("/auth/signin");
-//       }, 3000);
-//       if (checkNavigation === false && message === null) {
-//         clearTimeout(navigateTimeOut);
-//       }
-//     } else {
-//       const messageTimeOut = setTimeout(() => {
-//         console.log("h");
-//         setMessage(null);
-//       }, 5000);
-//       if (message === null) {
-//         clearTimeout(messageTimeOut);
-//       }
-//     }console.log(signupSuccess);
-//   }, [checkNavigation, navigate, message,signupSuccess, data]);
-//   console.log(message);
-//   return (
-//     <>
-//       {signupSuccess && message !== null ? (
-//         <Alert over status="success">
-//           <AlertIcon />
-//           {message}
-//         </Alert>
-//       ) : message !== null ? (
-//         <Alert status="error">
-//           <AlertIcon />
-//           {message}
-//         </Alert>
-//       ) : null}
-
-//       <Container
-//         mt={"3%"}
-//         // position={"sticky"}
-//         //  w={{ base: "94%", md: "55%", lg: "60%" }}
-//         maxW={{ base: "90%", md: "65%", lg: "40%" }}
-//         borderRadius={"20px"}
-//         p={"2% 4% 4% 4%"}
-//         // bg={"whitesmoke"}
-//       >
-//         <Heading
-//           textAlign={"center"}
-//           mb={"11%"}
-//           //  bg={"whitesmoke"}
-//         >
-//           SignUp
-//         </Heading>
-//         <FormControl
-//         // bg={"whitesmoke"}
-//         >
-//           <Box
-//           //  bg={"whitesmoke"}
-//           >
-//             <FormLabel
-//             // bg={"whitesmoke"}
-//             >
-//               Email
-//             </FormLabel>
-//             <Input
-//               type={"email"}
-//               required={true}
-//               // bg={"whitesmoke"}
-//               placeholder={"Enter your Email"}
-//               onKeyDown={handleKeyDown}
-//               onChange={(e) =>
-//                 setSignUpData({ ...signUpData, Email: e.target.value })
-//               }
-//             />
-//           </Box>
-//           <Box
-//             // bg={"whitesmoke"}
-//             mt={"3%"}
-//           >
-//             <FormLabel
-//             //  bg={"whitesmoke"}
-//             >
-//               Password
-//             </FormLabel>
-//             <Input
-//               type={"password"}
-//               required={true}
-//               // bg={"whitesmoke"}
-//               placeholder={"Enter your Password"}
-//               onKeyDown={handleKeyDown}
-//               onChange={(e) =>
-//                 setSignUpData({ ...signUpData, Password: e.target.value })
-//               }
-//             />
-//           </Box>
-//           <Box
-//             // bg={"whitesmoke"}
-//             mt={"3%"}
-//           >
-//             <FormLabel
-//             // bg={"whitesmoke"}
-//             >
-//               Confirm Password
-//             </FormLabel>
-//             <Input
-//               type={"password"}
-//               required={true}
-//               // bg={"whitesmoke"}
-//               placeholder={"Confirm your Password"}
-//               onKeyDown={handleKeyDown}
-//               onChange={(e) => setScmpPassword(e.target.value)}
-//             />
-//           </Box>
-//           <Box
-//             //  bg={"whitesmoke"}
-//             mt={"7%"}
-//           >
-//             <Checkbox border={"1px  gray"} fontSize={"sm"}>
-//               You agree to our Terms of service & Privacy Policy
-//             </Checkbox>
-//             {/* <Spacer/> */}
-//             <Box>
-//               <Text
-//                 // bg={"whitesmoke"}
-//                 mt={"1%"}
-//                 fontSize={"md"}
-//               >
-//                 Already have Account?{" "}
-//                 <Link to="/auth/signin">
-//                   <Text
-//                     as={"span"}
-//                     cursor={"pointer"}
-//                     textDecoration={"underline"}
-//                     color="#1f4985"
-//                   >
-//                     Click Here for SignIn
-//                   </Text>
-//                 </Link>
-//               </Text>
-//             </Box>
-//           </Box>{" "}
-//           <Button
-//             w={"100%"}
-//             mt={"3%"}
-//             color={"white"}
-//             // colorScheme={"#01bfbd"}
-//             bg={"#4285f4"}
-//             onClick={handleSignup}
-//           >
-//             Submit
-//           </Button>
-//         </FormControl>
-//       </Container>
-//     </>
-//   );
-// };
-
-// export default Signup;
-
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import {
-  Container,
-  Heading,
   Box,
-  FormLabel,
-  FormControl,
-  Input,
   Button,
+  Flex,
+  FormControl,
+  FormLabel,
+  Input,
   Text,
-  Alert,
-  AlertIcon,
+  useToast,
   InputGroup,
   InputRightElement,
   IconButton,
 } from "@chakra-ui/react";
-import { Link, useNavigate } from "react-router-dom";
-import { signUpApi } from "../apis/auth";
+import { Link, useNavigate, useLocation } from "react-router-dom";
+import { signUpApi } from "../services/testService";
 import { FaEye, FaEyeSlash } from "react-icons/fa";
 
-const Signup = ({
-  message,
-  setMessage,
-  checkNavigation,
-  setCheckNavigation,
-}) => {
+const Signup = ({ message, setMessage }) => {
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(false);
-  const [signUpSuccess, setSignUpSuccess] = useState(false);
+  const location = useLocation();
+  const toast = useToast();
   const [showPassword, setShowPassword] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
-  const [signupData, setSignupData] = useState({
-    Name: "",
-    Email: "",
-    Password: "",
+  const [form, setForm] = useState({
+    name: "",
+    email: "",
+    password: "",
     confirmPassword: "",
   });
+  const [loading, setLoading] = useState(false);
 
-  const handleKeyDown = (e) => {
-    if (e.key === "Enter") handleSubmit();
-  };
+  const params = new URLSearchParams(location.search);
+  const redirectTo = params.get("redirect") || location.state?.from || "/";
 
-  const handleSubmit = async () => {
-    if (
-      !signupData.Name ||
-      !signupData.Email ||
-      !signupData.Password ||
-      !signupData.confirmPassword
-    ) {
-      setMessage("All fields are Required");
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (form.password !== form.confirmPassword) {
+      toast({
+        title: "Passwords don't match",
+        status: "error",
+        duration: 3000,
+      });
       return;
     }
-    if (!signupData.Email.includes("@")) {
-      setMessage("Enter a valid email");
-      return;
-    }
-    if (signupData.Password !== signupData.confirmPassword) {
-      setMessage("Passwords do not match");
-      return;
-    }
-    if (signupData.Password.length < 6) {
-      setMessage("Password must be at least 6 characters");
-      return;
-    }
-
     setLoading(true);
-    const { confirmPassword, ...payload } = signupData;
-    const success = await signUpApi(payload, confirmPassword, setMessage);
-    setLoading(false);
-
-    if (success) {
-      setSignUpSuccess(true);
-      setCheckNavigation(true);
+    try {
+      const success = await signUpApi(
+        { Name: form.name, Email: form.email, Password: form.password },
+        form.confirmPassword,
+        setMessage,
+      );
+      if (success) {
+        toast({ title: "Account created!", status: "success", duration: 2000 });
+        navigate(decodeURIComponent(redirectTo), { replace: true });
+      } else {
+        toast({
+          title: message || "Sign up failed",
+          status: "error",
+          duration: 3000,
+        });
+      }
+    } catch (err) {
+      toast({ title: "Something went wrong", status: "error" });
+    } finally {
+      setLoading(false);
     }
   };
 
-  useEffect(() => {
-    if (!signUpSuccess || !checkNavigation) return;
-    const timer = setTimeout(() => {
-      setMessage(null);
-      setCheckNavigation(false);
-      navigate("/");
-    }, 1500);
-    return () => clearTimeout(timer);
-  }, [
-    signUpSuccess,
-    checkNavigation,
-    navigate,
-    setMessage,
-    setCheckNavigation,
-  ]);
-
-  useEffect(() => {
-    if (!message || signUpSuccess) return;
-    const timer = setTimeout(() => setMessage(null), 5000);
-    return () => clearTimeout(timer);
-  }, [message, signUpSuccess, setMessage]);
+  const sf = (k) => (e) => setForm((p) => ({ ...p, [k]: e.target.value }));
 
   return (
-    <>
-      {message && (
-        <Alert status={signUpSuccess ? "success" : "error"} mb={0}>
-          <AlertIcon />
-          {message}
-        </Alert>
-      )}
-
-      <Container
-        mt="3%"
+    <Flex
+      minH="100vh"
+      align="center"
+      justify="center"
+      bg="#f8fafc"
+      fontFamily="'Sora', sans-serif"
+    >
+      <Box
+        w={{ base: "full", sm: "440px" }}
+        mx={4}
+        bg="white"
         borderRadius="20px"
-        maxW={{ base: "90%", md: "65%", lg: "40%" }}
-        p="2% 4% 4% 4%"
+        boxShadow="0 20px 60px rgba(0,0,0,.1)"
+        p={{ base: 6, md: 10 }}
       >
-        <Heading textAlign="center" mb="8%">
-          Create Account
-        </Heading>
-
-        <FormControl>
-          <Box>
-            <FormLabel>Full Name</FormLabel>
-            <Input
-              type="text"
-              placeholder="Enter your Name"
-              value={signupData.Name}
-              onKeyDown={handleKeyDown}
-              onChange={(e) =>
-                setSignupData({ ...signupData, Name: e.target.value })
-              }
-            />
+        <Box textAlign="center" mb={8}>
+          <Box
+            w="52px"
+            h="52px"
+            bg="linear-gradient(135deg,#4a72b8,#1e3a5f)"
+            borderRadius="14px"
+            display="flex"
+            alignItems="center"
+            justifyContent="center"
+            mx="auto"
+            mb={4}
+            fontSize="22px"
+          >
+            📋
           </Box>
+          <Text fontSize="24px" fontWeight={800} color="#0f172a" mb={1}>
+            Create account
+          </Text>
+          <Text fontSize="14px" color="#64748b">
+            Join to take tests and track progress
+          </Text>
+        </Box>
 
-          <Box mt="3%">
-            <FormLabel>Email</FormLabel>
+        <form onSubmit={handleSubmit}>
+          <FormControl mb={4}>
+            <FormLabel
+              fontSize="12px"
+              fontWeight={700}
+              color="#374151"
+              textTransform="uppercase"
+              letterSpacing=".8px"
+            >
+              Full Name
+            </FormLabel>
+            <Input
+              value={form.name}
+              onChange={sf("name")}
+              placeholder="John Doe"
+              h="46px"
+              borderRadius="10px"
+              borderColor="#e2e8f0"
+              fontSize="14px"
+              required
+              _focus={{
+                borderColor: "#4a72b8",
+                boxShadow: "0 0 0 1px #4a72b8",
+              }}
+            />
+          </FormControl>
+
+          <FormControl mb={4}>
+            <FormLabel
+              fontSize="12px"
+              fontWeight={700}
+              color="#374151"
+              textTransform="uppercase"
+              letterSpacing=".8px"
+            >
+              Email
+            </FormLabel>
             <Input
               type="email"
-              placeholder="Enter your Email"
-              value={signupData.Email}
-              onKeyDown={handleKeyDown}
-              onChange={(e) =>
-                setSignupData({ ...signupData, Email: e.target.value })
-              }
+              value={form.email}
+              onChange={sf("email")}
+              placeholder="you@example.com"
+              h="46px"
+              borderRadius="10px"
+              borderColor="#e2e8f0"
+              fontSize="14px"
+              required
+              _focus={{
+                borderColor: "#4a72b8",
+                boxShadow: "0 0 0 1px #4a72b8",
+              }}
             />
-          </Box>
+          </FormControl>
 
-          <Box mt="3%">
-            <FormLabel>Password</FormLabel>
+          <FormControl mb={4}>
+            <FormLabel
+              fontSize="12px"
+              fontWeight={700}
+              color="#374151"
+              textTransform="uppercase"
+              letterSpacing=".8px"
+            >
+              Password
+            </FormLabel>
             <InputGroup>
               <Input
                 type={showPassword ? "text" : "password"}
-                placeholder="Create a Password"
-                value={signupData.Password}
-                onKeyDown={handleKeyDown}
-                onChange={(e) =>
-                  setSignupData({ ...signupData, Password: e.target.value })
-                }
+                value={form.password}
+                onChange={sf("password")}
+                placeholder="••••••••"
+                h="46px"
+                borderRadius="10px"
+                borderColor="#e2e8f0"
+                fontSize="14px"
+                required
+                _focus={{
+                  borderColor: "#4a72b8",
+                  boxShadow: "0 0 0 1px #4a72b8",
+                }}
               />
-              <InputRightElement>
+              <InputRightElement h="46px">
                 <IconButton
-                  size="sm"
-                  variant="ghost"
-                  aria-label="Toggle password"
                   icon={showPassword ? <FaEyeSlash /> : <FaEye />}
-                  onClick={() => setShowPassword((p) => !p)}
-                />
-              </InputRightElement>
-            </InputGroup>
-          </Box>
-
-          <Box mt="3%">
-            <FormLabel>Confirm Password</FormLabel>
-            <InputGroup>
-              <Input
-                type={showConfirm ? "text" : "password"}
-                placeholder="Confirm your Password"
-                value={signupData.confirmPassword}
-                onKeyDown={handleKeyDown}
-                onChange={(e) =>
-                  setSignupData({
-                    ...signupData,
-                    confirmPassword: e.target.value,
-                  })
-                }
-              />
-              <InputRightElement>
-                <IconButton
-                  size="sm"
                   variant="ghost"
-                  aria-label="Toggle confirm password"
-                  icon={showConfirm ? <FaEyeSlash /> : <FaEye />}
-                  onClick={() => setShowConfirm((p) => !p)}
+                  size="sm"
+                  onClick={() => setShowPassword(!showPassword)}
+                  aria-label="Toggle password"
                 />
               </InputRightElement>
             </InputGroup>
-          </Box>
+          </FormControl>
 
-          <Box mt="7%">
-            <Text fontSize="md">
-              Already have an account?{" "}
-              <Link to="/auth/signin">
-                <Text
-                  as="span"
-                  cursor="pointer"
-                  textDecoration="underline"
-                  color="#1f4985"
-                >
-                  Sign In
-                </Text>
-              </Link>
-            </Text>
-          </Box>
+          <FormControl mb={6}>
+            <FormLabel
+              fontSize="12px"
+              fontWeight={700}
+              color="#374151"
+              textTransform="uppercase"
+              letterSpacing=".8px"
+            >
+              Confirm Password
+            </FormLabel>
+            <Input
+              type="password"
+              value={form.confirmPassword}
+              onChange={sf("confirmPassword")}
+              placeholder="••••••••"
+              h="46px"
+              borderRadius="10px"
+              borderColor="#e2e8f0"
+              fontSize="14px"
+              required
+              _focus={{
+                borderColor: "#4a72b8",
+                boxShadow: "0 0 0 1px #4a72b8",
+              }}
+            />
+          </FormControl>
 
           <Button
-            w="100%"
-            mt="3%"
-            colorScheme="teal"
-            bg="#4285f4"
+            type="submit"
+            w="full"
+            h="50px"
+            borderRadius="12px"
+            bg="linear-gradient(135deg,#4a72b8,#1e3a5f)"
+            color="white"
+            fontWeight={800}
+            fontSize="15px"
             isLoading={loading}
-            loadingText="Creating account..."
-            onClick={handleSubmit}
+            loadingText="Creating account…"
+            _hover={{
+              opacity: 0.9,
+              transform: "translateY(-1px)",
+              boxShadow: "0 8px 24px rgba(74,114,184,.35)",
+            }}
+            transition="all .2s"
           >
             Create Account
           </Button>
-        </FormControl>
-      </Container>
-    </>
+        </form>
+
+        <Flex mt={6} justify="center" gap={1} fontSize="14px">
+          <Text color="#64748b">Already have an account?</Text>
+          <Link
+            to={`/auth/signin${redirectTo !== "/" ? `?redirect=${encodeURIComponent(redirectTo)}` : ""}`}
+            style={{ color: "#4a72b8", fontWeight: 700 }}
+          >
+            Sign in
+          </Link>
+        </Flex>
+      </Box>
+    </Flex>
   );
 };
 

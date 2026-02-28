@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   Box,
   Button,
@@ -30,7 +30,6 @@ import {
 import ModalPause from "./ModalPause";
 import { useNavigate } from "react-router-dom";
 import { getLocalStorage, setLocalStorage } from "../helpers/localStorage";
-
 import { HamburgerIcon } from "@chakra-ui/icons";
 import ReportQuestionDropdown from "./ReportQuestionDropdown.jsx";
 import { saveTestScore } from "../helpers/testProgressHelper";
@@ -59,19 +58,26 @@ const TakeTest = ({ quest, handleFullScreen }) => {
   const [mark, setMark] = useState(0);
   const [isMobile] = useMediaQuery("(max-width: 768px)");
   const [correctQus, setcorrectQus] = useState([]);
-  // const dispatch = useDispatch();
 
-  // COUNT UP timer (single subcategory)
+  // ─── Timer state ───────────────────────────────────────────────
+  // COUNT UP (default / single test)
   const [hour, sethour] = useState(0);
   const [min, setmin] = useState(0);
   const [sec, setsec] = useState(0);
 
-  // COUNTDOWN timer (multiple subcategories)
+  // COUNTDOWN (multi-subcategory custom tests)
   const [reversehour, setreversehour] = useState(0);
   const [reversemin, setreversemin] = useState(0);
   const [reversesec, setreversesec] = useState(0);
-
   const [totalTimeInSeconds, setTotalTimeInSeconds] = useState(0);
+
+  // ─── Determine timer mode ONCE ────────────────────────────────
+  // isCountdown = true ONLY when Testdata has multiple subcategories
+  // For direct test links: Testdata is set to [] by TestDetailPage → count up
+  const Testdata = getLocalStorage("Testdata") || [];
+  const isCountdown = Testdata.length > 1;
+  const isMultipleSubcategories = isCountdown;
+
   const [size, setSize] = useState("");
   const { isOpen, onOpen, onClose } = useDisclosure();
   const toast = useToast();
@@ -82,82 +88,42 @@ const TakeTest = ({ quest, handleFullScreen }) => {
   const [isFullscreenActive, setIsFullscreenActive] = useState(false);
   const [hasExitedFullscreen, setHasExitedFullscreen] = useState(false);
 
-  const [collectAns, setcollectAns] = useState([[]]);
   const [correctAns, setCorrectAns] = useState([]);
   const navigate = useNavigate();
-  const [testData, setTestData] = useState({
-    allAnswer: null,
-    answeredQuestion: null,
-    notAnswer: null,
-    markedAndAnswer: null,
-    markedNotAnswer: null,
-  });
 
-  // Initialize time based on Testdata from localStorage
+  // ─── Initialize timer ─────────────────────────────────────────
   useEffect(() => {
-    const Testdata = getLocalStorage("Testdata") || [];
-    const totalQuestions = question.length;
-
-    console.log("=== Timer Initialization ===", {
-      TestdataLength: Testdata.length,
-      totalQuestions: totalQuestions,
-      Testdata: Testdata,
-    });
-
-    if (Testdata.length > 1) {
-      // Multiple subcategories: COUNTDOWN timer
-      const calculatedTimeInSeconds = totalQuestions * 30;
+    if (isCountdown) {
+      const calculatedTimeInSeconds = question.length * 30;
       setTotalTimeInSeconds(calculatedTimeInSeconds);
-
-      const totalHours = Math.floor(calculatedTimeInSeconds / 3600);
-      const totalMinutes = Math.floor((calculatedTimeInSeconds % 3600) / 60);
-      const totalSeconds = calculatedTimeInSeconds % 60;
-
-      setreversehour(totalHours);
-      setreversemin(totalMinutes);
-      setreversesec(totalSeconds);
-
-      console.log("✅ MULTIPLE SUBCATEGORIES - COUNTDOWN FROM:", {
-        subcategories: Testdata.length,
-        totalQuestions: totalQuestions,
-        startTime: `${totalHours}:${totalMinutes}:${totalSeconds}`,
-        totalSeconds: calculatedTimeInSeconds,
-      });
+      setreversehour(Math.floor(calculatedTimeInSeconds / 3600));
+      setreversemin(Math.floor((calculatedTimeInSeconds % 3600) / 60));
+      setreversesec(calculatedTimeInSeconds % 60);
     } else {
-      // Single subcategory: COUNT UP from 0
       sethour(0);
       setmin(0);
       setsec(0);
-
-      console.log("✅ SINGLE SUBCATEGORY - COUNT UP FROM 00:00:00");
     }
-  }, [question.length]);
+  }, [question.length, isCountdown]);
 
-  // Prevent fullscreen exit and navigation
+  // ─── Fullscreen / navigation guard ────────────────────────────
   useEffect(() => {
     let isRequestingFullscreen = false;
-
     const requestFullscreen = async () => {
       if (isRequestingFullscreen) return;
       isRequestingFullscreen = true;
       const elem = document.documentElement;
-
       try {
-        if (elem.requestFullscreen) {
-          await elem.requestFullscreen();
-        } else if (elem.webkitRequestFullscreen) {
+        if (elem.requestFullscreen) await elem.requestFullscreen();
+        else if (elem.webkitRequestFullscreen)
           await elem.webkitRequestFullscreen();
-        } else if (elem.msRequestFullscreen) {
-          await elem.msRequestFullscreen();
-        }
+        else if (elem.msRequestFullscreen) await elem.msRequestFullscreen();
         setIsFullscreenActive(true);
       } catch (error) {
-        console.log("Fullscreen request failed:", error);
         if (hasExitedFullscreen) {
           toast({
             title: "Fullscreen Required",
-            description:
-              "Please click anywhere on the screen to re-enter fullscreen mode.",
+            description: "Please click anywhere to re-enter fullscreen mode.",
             status: "warning",
             duration: 5000,
             isClosable: true,
@@ -168,22 +134,18 @@ const TakeTest = ({ quest, handleFullScreen }) => {
         isRequestingFullscreen = false;
       }
     };
-
     const handleFullscreenChange = () => {
       const isCurrentlyFullscreen = !!(
         document.fullscreenElement ||
         document.webkitFullscreenElement ||
         document.msFullscreenElement
       );
-
       if (!isCurrentlyFullscreen && isFullscreenActive) {
         setIsFullscreenActive(false);
         setHasExitedFullscreen(true);
-
         toast({
           title: "Fullscreen Exited",
-          description:
-            "Click anywhere to re-enter fullscreen mode. You must stay in fullscreen during the test.",
+          description: "Click anywhere to re-enter fullscreen mode.",
           status: "warning",
           duration: 5000,
           isClosable: true,
@@ -193,13 +155,10 @@ const TakeTest = ({ quest, handleFullScreen }) => {
         setIsFullscreenActive(true);
       }
     };
-
     const handleClickToFullscreen = () => {
-      if (!isFullscreenActive && hasExitedFullscreen && !isMobile) {
+      if (!isFullscreenActive && hasExitedFullscreen && !isMobile)
         requestFullscreen();
-      }
     };
-
     const handleBackButton = (e) => {
       e.preventDefault();
       window.history.pushState(null, "", window.location.href);
@@ -213,7 +172,6 @@ const TakeTest = ({ quest, handleFullScreen }) => {
         position: "top",
       });
     };
-
     const handleBeforeUnload = (e) => {
       e.preventDefault();
       e.returnValue =
@@ -225,7 +183,6 @@ const TakeTest = ({ quest, handleFullScreen }) => {
     document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
     document.addEventListener("MSFullscreenChange", handleFullscreenChange);
     document.addEventListener("click", handleClickToFullscreen);
-
     window.history.pushState(null, "", window.location.href);
     window.addEventListener("popstate", handleBackButton);
     window.addEventListener("beforeunload", handleBeforeUnload);
@@ -246,41 +203,29 @@ const TakeTest = ({ quest, handleFullScreen }) => {
     };
   }, [isMobile, isFullscreenActive, hasExitedFullscreen]);
 
-  // Prevent right-click context menu
+  // Prevent right-click
   useEffect(() => {
-    const handleContextMenu = (e) => {
+    const h = (e) => {
       e.preventDefault();
       return false;
     };
-
-    document.addEventListener("contextmenu", handleContextMenu);
-    return () => {
-      document.removeEventListener("contextmenu", handleContextMenu);
-    };
+    document.addEventListener("contextmenu", h);
+    return () => document.removeEventListener("contextmenu", h);
   }, []);
 
-  // Prevent common keyboard shortcuts
+  // Prevent shortcuts
   useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === "F11") {
-        e.preventDefault();
-      }
-      if (e.key === "Escape") {
-        e.preventDefault();
-      }
-      if (e.altKey && e.key === "F4") {
-        e.preventDefault();
-      }
-      if (e.ctrlKey && e.key === "w") {
-        e.preventDefault();
-      }
+    const h = (e) => {
+      if (e.key === "F11" || e.key === "Escape") e.preventDefault();
+      if (e.altKey && e.key === "F4") e.preventDefault();
+      if (e.ctrlKey && e.key === "w") e.preventDefault();
     };
-
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("keydown", handleKeyDown);
-    };
+    document.addEventListener("keydown", h);
+    return () => document.removeEventListener("keydown", h);
   }, []);
+
+  // ─── Ref for giveMark (to avoid stale closure in timer) ────────
+  const giveMarkRef = useRef(null);
 
   const handlequestion = (con) => {
     if (con === "svn") {
@@ -290,51 +235,39 @@ const TakeTest = ({ quest, handleFullScreen }) => {
         !answeredQuestion.includes(currentquestion)
       ) {
         if (markedNotAnswer.includes(currentquestion)) {
-          let removeFromMarkedNotAnswer =
-            markedNotAnswer.indexOf(currentquestion);
-          markedNotAnswer.splice(removeFromMarkedNotAnswer, 1);
+          let r = markedNotAnswer.indexOf(currentquestion);
+          markedNotAnswer.splice(r, 1);
         }
-
         if (notAnswer.includes(currentquestion)) {
-          let removeFromNotAnswer = notAnswer.indexOf(currentquestion);
-          notAnswer.splice(removeFromNotAnswer, 1);
+          let r = notAnswer.indexOf(currentquestion);
+          notAnswer.splice(r, 1);
         }
-
         if (markedAndAnswer.includes(currentquestion)) {
-          let removeFromMarkedAndAnswer =
-            markedAndAnswer.indexOf(currentquestion);
-          markedAndAnswer.splice(removeFromMarkedAndAnswer, 1);
+          let r = markedAndAnswer.indexOf(currentquestion);
+          markedAndAnswer.splice(r, 1);
         }
-
         setAnsweredQuestion([...answeredQuestion, currentquestion]);
-
-        if (question.length - 1 > currentquestion) {
+        if (question.length - 1 > currentquestion)
           setcurrentquestion(currentquestion + 1);
-        }
       } else if (allAns[currentquestion] === undefined && answer === null) {
         if (!notAnswer.includes(currentquestion)) {
           if (markedNotAnswer.includes(currentquestion)) {
-            let removeFromMarkedNotAnswer =
-              markedNotAnswer.indexOf(currentquestion);
-            markedNotAnswer.splice(removeFromMarkedNotAnswer, 1);
+            let r = markedNotAnswer.indexOf(currentquestion);
+            markedNotAnswer.splice(r, 1);
           }
           if (markedAndAnswer.includes(currentquestion)) {
-            let removeFromMarAndAnswer =
-              markedAndAnswer.indexOf(currentquestion);
-            markedAndAnswer.splice(removeFromMarAndAnswer, 1);
+            let r = markedAndAnswer.indexOf(currentquestion);
+            markedAndAnswer.splice(r, 1);
           }
           if (answeredQuestion.includes(currentquestion)) {
-            let removeFromAnswerQuestion =
-              answeredQuestion.indexOf(currentquestion);
-            answeredQuestion.splice(removeFromAnswerQuestion, 1);
+            let r = answeredQuestion.indexOf(currentquestion);
+            answeredQuestion.splice(r, 1);
           }
-
           setNotAnswer([...notAnswer, currentquestion]);
         }
       }
-      if (question.length - 1 > currentquestion) {
+      if (question.length - 1 > currentquestion)
         setcurrentquestion(currentquestion + 1);
-      }
     } else {
       if (
         answer !== null &&
@@ -342,26 +275,19 @@ const TakeTest = ({ quest, handleFullScreen }) => {
         !answeredQuestion.includes(currentquestion)
       ) {
         if (markedNotAnswer.includes(currentquestion)) {
-          let removeFromMarkedNotAnswer =
-            markedNotAnswer.indexOf(currentquestion);
-          markedNotAnswer.splice(removeFromMarkedNotAnswer, 1);
+          let r = markedNotAnswer.indexOf(currentquestion);
+          markedNotAnswer.splice(r, 1);
         }
-
         if (notAnswer.includes(currentquestion)) {
-          let removeFromNotAnswer = notAnswer.indexOf(currentquestion);
-          notAnswer.splice(removeFromNotAnswer, 1);
+          let r = notAnswer.indexOf(currentquestion);
+          notAnswer.splice(r, 1);
         }
-
         if (markedAndAnswer.includes(currentquestion)) {
-          let removeFromMarkedAndAnswer =
-            markedAndAnswer.indexOf(currentquestion);
-          markedAndAnswer.splice(removeFromMarkedAndAnswer, 1);
+          let r = markedAndAnswer.indexOf(currentquestion);
+          markedAndAnswer.splice(r, 1);
         }
-
         setAnsweredQuestion([...answeredQuestion, currentquestion]);
-        if (question.length - 1 > currentquestion) {
-          setcurrentquestion(con);
-        }
+        if (question.length - 1 > currentquestion) setcurrentquestion(con);
       } else if (
         answer === null &&
         allAns[currentquestion] === undefined &&
@@ -369,59 +295,44 @@ const TakeTest = ({ quest, handleFullScreen }) => {
         currentquestion !== con
       ) {
         if (markedNotAnswer.includes(currentquestion)) {
-          let removeFromMarkedNotAnswer =
-            markedNotAnswer.indexOf(currentquestion);
-          markedNotAnswer.splice(removeFromMarkedNotAnswer, 1);
+          let r = markedNotAnswer.indexOf(currentquestion);
+          markedNotAnswer.splice(r, 1);
         }
-
         if (markedAndAnswer.includes(currentquestion)) {
-          let removeFromMarkedAndAnswer =
-            markedAndAnswer.indexOf(currentquestion);
-          markedAndAnswer.splice(removeFromMarkedAndAnswer, 1);
+          let r = markedAndAnswer.indexOf(currentquestion);
+          markedAndAnswer.splice(r, 1);
         }
-
         if (answeredQuestion.includes(currentquestion)) {
-          let removeFromMarkedAndAnswer =
-            answeredQuestion.indexOf(currentquestion);
-          answeredQuestion.splice(removeFromMarkedAndAnswer, 1);
+          let r = answeredQuestion.indexOf(currentquestion);
+          answeredQuestion.splice(r, 1);
         }
         setNotAnswer([...notAnswer, currentquestion]);
-
-        if (question.length - 1 > currentquestion) {
-          setcurrentquestion(con);
-        }
+        if (question.length - 1 > currentquestion) setcurrentquestion(con);
       }
-      if (con !== isNaN) {
-        setcurrentquestion(con);
-      }
+      if (con !== isNaN) setcurrentquestion(con);
     }
     setans(null);
   };
 
   const markedQuestion = () => {
     if (allAns[currentquestion] === undefined && answer !== null) {
-      setAllAns((prevState) => ({
-        ...prevState,
-        [currentquestion]: answer,
-      }));
+      setAllAns((p) => ({ ...p, [currentquestion]: answer }));
     }
     if (
       allAns[currentquestion] !== undefined &&
       !markedAndAnswer.includes(currentquestion)
     ) {
       if (answeredQuestion.includes(currentquestion)) {
-        let removeFromAnswer = answeredQuestion.indexOf(currentquestion);
-        answeredQuestion.splice(removeFromAnswer, 1);
+        let r = answeredQuestion.indexOf(currentquestion);
+        answeredQuestion.splice(r, 1);
       }
-
       if (markedNotAnswer.includes(currentquestion)) {
-        let removeFromMarkNotAnswer = markedNotAnswer.indexOf(currentquestion);
-        notAnswer.splice(removeFromMarkNotAnswer, 1);
+        let r = markedNotAnswer.indexOf(currentquestion);
+        notAnswer.splice(r, 1);
       }
-
       if (notAnswer.includes(currentquestion)) {
-        let removeFromNotAnswer = notAnswer.indexOf(currentquestion);
-        notAnswer.splice(removeFromNotAnswer, 1);
+        let r = notAnswer.indexOf(currentquestion);
+        notAnswer.splice(r, 1);
       }
       setMarkedAndAnswer([...markedAndAnswer, currentquestion]);
       setans(null);
@@ -429,29 +340,27 @@ const TakeTest = ({ quest, handleFullScreen }) => {
       allAns[currentquestion] === undefined &&
       !markedNotAnswer.includes(currentquestion)
     ) {
-      setAllAns((prevState) => {
-        const updatedState = { ...prevState };
-        delete updatedState[currentquestion];
-        return updatedState;
+      setAllAns((p) => {
+        const u = { ...p };
+        delete u[currentquestion];
+        return u;
       });
       if (answeredQuestion.includes(currentquestion)) {
-        let removeFromAnswer = answeredQuestion.indexOf(currentquestion);
-        answeredQuestion.splice(removeFromAnswer, 1);
+        let r = answeredQuestion.indexOf(currentquestion);
+        answeredQuestion.splice(r, 1);
       }
-
       if (markedAndAnswer.includes(currentquestion)) {
-        let removeFromMarkAndAnswer = markedAndAnswer.indexOf(currentquestion);
-        notAnswer.splice(removeFromMarkAndAnswer, 1);
+        let r = markedAndAnswer.indexOf(currentquestion);
+        notAnswer.splice(r, 1);
       }
       if (notAnswer.includes(currentquestion)) {
-        let removeFromNotAnswer = notAnswer.indexOf(currentquestion);
-        notAnswer.splice(removeFromNotAnswer, 1);
+        let r = notAnswer.indexOf(currentquestion);
+        notAnswer.splice(r, 1);
       }
       setMarkedNotAnswer([...markedNotAnswer, currentquestion]);
     }
-    if (question.length - 1 > currentquestion) {
+    if (question.length - 1 > currentquestion)
       setcurrentquestion(currentquestion + 1);
-    }
   };
 
   const handleAnswer = (ans, qus) => {
@@ -462,71 +371,58 @@ const TakeTest = ({ quest, handleFullScreen }) => {
     ) {
       if (wrongansqus.includes(currentquestion)) {
         setwrong(wrongans - 1);
-        let removeFromwrongansqus = wrongansqus.indexOf(currentquestion);
-        wrongansqus.splice(removeFromwrongansqus, 1);
+        let r = wrongansqus.indexOf(currentquestion);
+        wrongansqus.splice(r, 1);
       }
-      setMark(mark + 1);
-      setcorrectQus([...correctQus, currentquestion]);
-      setCorrectAns([...correctAns, currentquestion]);
+      setMark((m) => m + 1);
+      setcorrectQus((p) => [...p, currentquestion]);
+      setCorrectAns((p) => [...p, currentquestion]);
     } else if (
       question[currentquestion].answer !== qus + 1 &&
       correctAns.includes(currentquestion)
     ) {
-      let removeFromCorrectAns = correctAns.indexOf(currentquestion);
-      correctAns.splice(removeFromCorrectAns, 1);
-      let removecorrectQus = correctQus.indexOf(currentquestion);
-      correctQus.splice(removecorrectQus, 1);
-      setMark(mark - 1);
-      setwrong(wrongans + 1);
+      let r = correctAns.indexOf(currentquestion);
+      correctAns.splice(r, 1);
+      let r2 = correctQus.indexOf(currentquestion);
+      correctQus.splice(r2, 1);
+      setMark((m) => m - 1);
+      setwrong((w) => w + 1);
     }
     if (
       question[currentquestion].answer !== qus + 1 &&
       !correctAns.includes(currentquestion) &&
       !wrongansqus.includes(currentquestion)
     ) {
-      setwrong(wrongans + 1);
-      setwrongansqus([...wrongansqus, currentquestion]);
+      setwrong((w) => w + 1);
+      setwrongansqus((p) => [...p, currentquestion]);
     }
-    setAllAns((prevState) => ({
-      ...prevState,
-      [currentquestion]: ans,
-    }));
+    setAllAns((p) => ({ ...p, [currentquestion]: ans }));
   };
 
   const handleClearAnswer = (questionIndex) => {
     if (answeredQuestion.includes(currentquestion)) {
-      let removeFromAnswer = answeredQuestion.indexOf(currentquestion);
-      answeredQuestion.splice(removeFromAnswer, 1);
+      let r = answeredQuestion.indexOf(currentquestion);
+      answeredQuestion.splice(r, 1);
     }
-
     if (markedAndAnswer.includes(currentquestion)) {
-      let removeFromMarkAndAnswer = markedAndAnswer.indexOf(currentquestion);
-      markedAndAnswer.splice(removeFromMarkAndAnswer, 1);
+      let r = markedAndAnswer.indexOf(currentquestion);
+      markedAndAnswer.splice(r, 1);
     }
-
     if (markedNotAnswer.includes(currentquestion)) {
-      let removeFromMarkNotAnswer = markedNotAnswer.indexOf(currentquestion);
-      markedNotAnswer.splice(removeFromMarkNotAnswer, 1);
+      let r = markedNotAnswer.indexOf(currentquestion);
+      markedNotAnswer.splice(r, 1);
     }
-
-    setAllAns((prevState) => {
-      const updatedState = { ...prevState };
-      delete updatedState[questionIndex];
-      return updatedState;
+    setAllAns((p) => {
+      const u = { ...p };
+      delete u[questionIndex];
+      return u;
     });
-    if (!notAnswer.includes(currentquestion)) {
+    if (!notAnswer.includes(currentquestion))
       setNotAnswer([...notAnswer, currentquestion]);
-    }
   };
 
-  const handleSubmitClick = () => {
-    setIsSubmitDialogOpen(true);
-  };
-
-  const handleCancelSubmit = () => {
-    setIsSubmitDialogOpen(false);
-  };
-
+  const handleSubmitClick = () => setIsSubmitDialogOpen(true);
+  const handleCancelSubmit = () => setIsSubmitDialogOpen(false);
   const handleConfirmSubmit = () => {
     setIsSubmitDialogOpen(false);
     giveMark();
@@ -537,21 +433,14 @@ const TakeTest = ({ quest, handleFullScreen }) => {
       const category = getLocalStorage("category");
       const user = await getCookies("_user");
       const subject = getLocalStorage("Subject");
-
       const scorePercentage =
         question.length > 0 ? (mark / question.length) * 100 : 0;
-
       const testIndex = getLocalStorage("currentTestIndex") || 0;
       const subcategory = getLocalStorage("currentSubcategory") || category;
       const currentCategory = getLocalStorage("currentCategory") || subject;
+      const TestdataLocal = getLocalStorage("Testdata") || [];
+      const isIndividualTest = TestdataLocal.length <= 1;
 
-      // ✅ NEW: Detect if this is an individual test or custom multi-subcategory test
-      // Check if Testdata has multiple subcategories (custom test)
-      const Testdata = getLocalStorage("Testdata") || [];
-      const isIndividualTest = Testdata.length <= 1;
-
-      // ✅ NEW: Pass isIndividualTest flag to saveTestScore
-      // Only saves progress if it's an individual subcategory test
       if (isIndividualTest) {
         saveTestScore(
           currentCategory,
@@ -560,149 +449,107 @@ const TakeTest = ({ quest, handleFullScreen }) => {
           scorePercentage,
           true,
         );
-        console.log("✅ Test Score Saved:", {
-          category: currentCategory,
-          subcategory: subcategory,
-          testIndex: testIndex,
-          score: scorePercentage.toFixed(1) + "%",
-          passed: scorePercentage >= 80,
-          type: "Individual Subcategory Test",
-        });
-      } else {
-        console.log("⚠️ Custom Multi-Subcategory Test - Progress NOT Saved:", {
-          testType: "Custom Test",
-          subcategoriesSelected: Testdata.length,
-          score: scorePercentage.toFixed(1) + "%",
-          note: "Progress only saved for individual subcategory tests",
-        });
       }
 
       const newTestData = {
-        user: user,
-        subject: subject,
+        user,
+        subject,
         rank: 0,
-        wrongans: wrongans,
-        correctQus: correctQus,
+        wrongans,
+        correctQus,
         score: mark,
         allAnswer: allAns,
-        wrongansqus: wrongansqus,
-        answeredQuestion: answeredQuestion,
-        notAnswer: notAnswer,
-        markedAndAnswer: markedAndAnswer,
-        markedNotAnswer: markedNotAnswer,
+        wrongansqus,
+        answeredQuestion,
+        notAnswer,
+        markedAndAnswer,
+        markedNotAnswer,
         section: category,
         questions: question,
       };
 
-      setTestData(newTestData);
-
-      // POST test result to backend via service
-      await createTestApi(newTestData);
+      // Save result
+      await createTestApi(newTestData).catch(() => {});
 
       setLocalStorage("Total", mark);
       setLocalStorage("test", [newTestData]);
       setLocalStorage("savedTestQuestions", null);
 
-      if (document.exitFullscreen) {
-        document.exitFullscreen();
-      } else if (document.webkitExitFullscreen) {
-        document.webkitExitFullscreen();
-      } else if (document.msExitFullscreen) {
-        document.msExitFullscreen();
-      }
+      // Exit fullscreen
+      if (document.exitFullscreen) document.exitFullscreen();
+      else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+      else if (document.msExitFullscreen) document.msExitFullscreen();
 
       if (handleFullScreen) handleFullScreen(false);
-      navigate("/test-result");
+
+      // ✅ Always navigate to result page
+      navigate("/test-result", { replace: true });
     } catch (error) {
-      console.log(error);
+      console.error("Submit error:", error);
+      // Even on error, still navigate to result
+      navigate("/test-result", { replace: true });
     }
   };
 
-  // Timer effect - Using Testdata to determine timer type
+  // Keep giveMark in a ref so timer can call it without stale closure
+  giveMarkRef.current = giveMark;
+
+  // ─── Timer effect ──────────────────────────────────────────────
   useEffect(() => {
-    const Testdata = getLocalStorage("Testdata") || [];
-
     const timer = setTimeout(() => {
-      if (Testdata.length + 1 > 1) {
-        // MULTIPLE SUBCATEGORIES: COUNTDOWN
-        console.log("in");
-
+      if (isCountdown) {
+        // COUNTDOWN mode
         const currentTimeInSeconds =
           reversehour * 3600 + reversemin * 60 + reversesec;
-
         if (currentTimeInSeconds <= 0) {
           toast({
             title: "Time's Up!",
-            description: "Your test will be submitted automatically.",
+            description: "Your test is being submitted automatically.",
             status: "warning",
             duration: 3000,
             isClosable: true,
             position: "top",
           });
-          giveMark();
+          giveMarkRef.current?.();
           return;
         }
-
-        // Decrement by 1 second
-        if (reversesec > 0) {
-          setreversesec(reversesec - 1);
-        } else if (reversemin > 0) {
-          setreversemin(reversemin - 1);
+        if (reversesec > 0) setreversesec((s) => s - 1);
+        else if (reversemin > 0) {
+          setreversemin((m) => m - 1);
           setreversesec(59);
         } else if (reversehour > 0) {
-          setreversehour(reversehour - 1);
+          setreversehour((h) => h - 1);
           setreversemin(59);
           setreversesec(59);
         }
-
-        console.log(
-          "⏱️ COUNTDOWN:",
-          `${reversehour}:${reversemin}:${reversesec}`,
-        );
       } else {
-        // SINGLE SUBCATEGORY: COUNT UP
-        console.log("in sec");
-        if (sec < 59) {
-          setsec(sec + 1);
-        } else {
+        // COUNT UP mode — no auto-submit
+        if (sec < 59) setsec((s) => s + 1);
+        else {
           setsec(0);
-          if (min < 59) {
-            setmin(min + 1);
-          } else {
+          if (min < 59) setmin((m) => m + 1);
+          else {
             setmin(0);
-            sethour(hour + 1);
+            sethour((h) => h + 1);
           }
         }
-
-        console.log("⏱️ COUNT UP:", `${hour}:${min}:${sec}`);
       }
     }, 1000);
-
     return () => clearTimeout(timer);
-  }, [hour, min, sec, reversehour, reversemin, reversesec]);
-
-  const handleClick = (newSize) => {
-    setSize(newSize);
-    onOpen();
-  };
+  }, [hour, min, sec, reversehour, reversemin, reversesec, isCountdown]);
 
   const enterFullscreen = async () => {
     const elem = document.documentElement;
-
     try {
-      if (elem.requestFullscreen) {
-        await elem.requestFullscreen();
-      } else if (elem.webkitRequestFullscreen) {
+      if (elem.requestFullscreen) await elem.requestFullscreen();
+      else if (elem.webkitRequestFullscreen)
         await elem.webkitRequestFullscreen();
-      } else if (elem.msRequestFullscreen) {
-        await elem.msRequestFullscreen();
-      }
+      else if (elem.msRequestFullscreen) await elem.msRequestFullscreen();
       setIsFullscreenActive(true);
     } catch (error) {
-      console.log("Fullscreen request failed:", error);
       toast({
         title: "Fullscreen Failed",
-        description: "Unable to enter fullscreen mode. Please try again.",
+        description: "Unable to enter fullscreen mode.",
         status: "error",
         duration: 3000,
         isClosable: true,
@@ -711,141 +558,89 @@ const TakeTest = ({ quest, handleFullScreen }) => {
     }
   };
 
-  // Check if multiple subcategories for display
-  const Testdata = getLocalStorage("Testdata") || [];
-  const isMultipleSubcategories = Testdata.length > 1;
+  const handleClick = (newSize) => {
+    setSize(newSize);
+    onOpen();
+  };
 
   const QuestionSidebar = () => (
     <VStack spacing={4} align="stretch" h="100%">
       <Box>
         <Text fontSize="xl" fontWeight="bold" color="white">
-          Pablo
+          Revision Karle
         </Text>
       </Box>
-
       <Box borderTop="1px solid rgba(255,255,255,0.2)" pt={4}>
         <VStack spacing={3} align="stretch">
-          <HStack justify="space-between">
-            <Text color="white" fontSize="sm">
-              Marked
-            </Text>
-            <Center
-              minW="28px"
-              h="28px"
-              bg="purple.500"
-              color="white"
-              borderRadius="full"
-              fontSize="sm"
-              fontWeight="600"
-            >
-              {markedNotAnswer.length}
-            </Center>
-          </HStack>
-
-          <HStack justify="space-between">
-            <Text color="white" fontSize="sm">
-              Not visited
-            </Text>
-            <Center
-              minW="28px"
-              h="28px"
-              bg="white"
-              color="gray.600"
-              border="1px solid"
-              borderColor="gray.300"
-              borderRadius="4px"
-              fontSize="sm"
-              fontWeight="600"
-            >
-              {question.length -
+          {[
+            {
+              label: "Marked",
+              count: markedNotAnswer.length,
+              bg: "purple.500",
+              shape: "full",
+            },
+            {
+              label: "Not visited",
+              count:
+                question.length -
                 (markedAndAnswer.length +
                   markedNotAnswer.length +
                   answeredQuestion.length +
-                  notAnswer.length)}
-            </Center>
-          </HStack>
-
-          <HStack justify="space-between">
-            <Text color="white" fontSize="sm">
-              Answered
-            </Text>
-            <Center
-              minW="28px"
-              h="28px"
-              bg="green.500"
-              color="white"
-              borderRadius="50% 50% 0 0"
-              fontSize="sm"
-              fontWeight="600"
-            >
-              {answeredQuestion.length}
-            </Center>
-          </HStack>
-
-          <HStack justify="space-between">
-            <Text color="white" fontSize="sm">
-              Not Answered
-            </Text>
-            <Center
-              minW="28px"
-              h="28px"
-              bg="red.500"
-              color="white"
-              borderRadius="0 0 50% 50%"
-              fontSize="sm"
-              fontWeight="600"
-            >
-              {notAnswer.length}
-            </Center>
-          </HStack>
-
-          <HStack justify="space-between">
-            <Text color="white" fontSize="sm">
-              Marked & Answered
-            </Text>
-            <Center
-              minW="28px"
-              h="28px"
-              bg="purple.500"
-              color="white"
-              borderRadius="full"
-              fontSize="sm"
-              fontWeight="600"
-            >
-              {markedAndAnswer.length}
-            </Center>
-          </HStack>
+                  notAnswer.length),
+              bg: "white",
+              textColor: "gray.600",
+              border: true,
+              shape: "4px",
+            },
+            {
+              label: "Answered",
+              count: answeredQuestion.length,
+              bg: "green.500",
+              shape: "50% 50% 0 0",
+            },
+            {
+              label: "Not Answered",
+              count: notAnswer.length,
+              bg: "red.500",
+              shape: "0 0 50% 50%",
+            },
+            {
+              label: "Marked & Answered",
+              count: markedAndAnswer.length,
+              bg: "purple.500",
+              shape: "full",
+            },
+          ].map(({ label, count, bg, textColor, border, shape }) => (
+            <HStack key={label} justify="space-between">
+              <Text color="white" fontSize="sm">
+                {label}
+              </Text>
+              <Center
+                minW="28px"
+                h="28px"
+                bg={bg}
+                color={textColor || "white"}
+                border={border ? "1px solid" : undefined}
+                borderColor={border ? "gray.300" : undefined}
+                borderRadius={shape}
+                fontSize="sm"
+                fontWeight="600"
+              >
+                {count}
+              </Center>
+            </HStack>
+          ))}
         </VStack>
       </Box>
-
-      <Box borderTop="1px solid rgba(255,255,255,0.2)" pt={4}>
-        <Text color="white" fontSize="sm" mb={3}>
-          Section: Elementary maths
-        </Text>
-      </Box>
-
-      <Box
-        flex="1"
-        overflowY="auto"
-        css={{
-          "&::-webkit-scrollbar": {
-            width: "4px",
-          },
-          "&::-webkit-scrollbar-track": {
-            background: "rgba(255,255,255,0.1)",
-          },
-          "&::-webkit-scrollbar-thumb": {
-            background: "rgba(255,255,255,0.3)",
-            borderRadius: "2px",
-          },
-        }}
-      >
+      <Box flex="1" overflowY="auto">
         <Grid templateColumns="repeat(5, 1fr)" gap={3}>
           {question?.map((d, i) => (
             <Center
               key={i}
               w="100%"
               h="40px"
+              cursor="pointer"
+              onClick={() => handlequestion(i)}
               bg={
                 markedNotAnswer.includes(i)
                   ? "purple.500"
@@ -885,13 +680,8 @@ const TakeTest = ({ quest, handleFullScreen }) => {
                   ? "transparent"
                   : "gray.300"
               }
-              cursor="pointer"
-              onClick={() => handlequestion(i)}
               transition="all 0.2s"
-              _hover={{
-                transform: "scale(1.05)",
-                shadow: "md",
-              }}
+              _hover={{ transform: "scale(1.05)", shadow: "md" }}
               fontSize="sm"
               fontWeight="600"
             >
@@ -900,7 +690,6 @@ const TakeTest = ({ quest, handleFullScreen }) => {
           ))}
         </Grid>
       </Box>
-
       <VStack spacing={3} pt={4} borderTop="1px solid rgba(255,255,255,0.2)">
         <Button
           w="100%"
@@ -933,6 +722,7 @@ const TakeTest = ({ quest, handleFullScreen }) => {
       bg="white"
       position="relative"
     >
+      {/* Fullscreen overlay */}
       {!isMobile && !isFullscreenActive && hasExitedFullscreen && (
         <Box
           position="fixed"
@@ -961,13 +751,11 @@ const TakeTest = ({ quest, handleFullScreen }) => {
             >
               Click Here to Re-enter Fullscreen
             </Button>
-            <Text fontSize="sm" color="gray.300">
-              You can only exit fullscreen by submitting the test
-            </Text>
           </VStack>
         </Box>
       )}
 
+      {/* Header */}
       <Flex
         bg="#4285f4"
         color="white"
@@ -985,7 +773,6 @@ const TakeTest = ({ quest, handleFullScreen }) => {
         >
           Revision Karle
         </Text>
-
         <Center
           bg="#01bfbd"
           px={{ base: 2, sm: 3, md: 4 }}
@@ -998,16 +785,15 @@ const TakeTest = ({ quest, handleFullScreen }) => {
         >
           <HStack spacing={{ base: 0.5, sm: 1 }}>
             <Text display={{ base: "none", sm: "inline" }}>
-              {isMultipleSubcategories ? "Time Left" : "Time"}
+              {isCountdown ? "Time Left" : "Time"}
             </Text>
             <Text>
-              {isMultipleSubcategories
+              {isCountdown
                 ? `${reversehour < 10 ? `0${reversehour}` : reversehour}:${reversemin < 10 ? `0${reversemin}` : reversemin}:${reversesec < 10 ? `0${reversesec}` : reversesec}`
                 : `${hour < 10 ? `0${hour}` : hour}:${min < 10 ? `0${min}` : min}:${sec < 10 ? `0${sec}` : sec}`}
             </Text>
           </HStack>
         </Center>
-
         <HStack spacing={{ base: 1, sm: 2 }} flexShrink={0}>
           {!isMobile && !isFullscreenActive && (
             <Button
@@ -1034,7 +820,8 @@ const TakeTest = ({ quest, handleFullScreen }) => {
         </HStack>
       </Flex>
 
-      {isMultipleSubcategories && (
+      {/* Countdown info bar */}
+      {isCountdown && (
         <Box
           bg="orange.50"
           borderBottom="2px solid"
@@ -1043,16 +830,14 @@ const TakeTest = ({ quest, handleFullScreen }) => {
           py={3}
         >
           <Flex align="center" justify="center" gap={2} flexWrap="wrap">
-            <HStack spacing={2}>
-              <Text fontSize="sm" fontWeight="600" color="orange.800">
-                ⏱️ Time Limit:
-              </Text>
-              <Text fontSize="sm" fontWeight="700" color="orange.900">
-                {totalTimeInSeconds >= 3600
-                  ? `${Math.floor(totalTimeInSeconds / 3600)} hour${Math.floor(totalTimeInSeconds / 3600) > 1 ? "s" : ""} ${Math.floor((totalTimeInSeconds % 3600) / 60)} minute${Math.floor((totalTimeInSeconds % 3600) / 60) !== 1 ? "s" : ""}`
-                  : `${Math.floor(totalTimeInSeconds / 60)} minute${Math.floor(totalTimeInSeconds / 60) !== 1 ? "s" : ""}`}
-              </Text>
-            </HStack>
+            <Text fontSize="sm" fontWeight="600" color="orange.800">
+              ⏱️ Time Limit:
+            </Text>
+            <Text fontSize="sm" fontWeight="700" color="orange.900">
+              {totalTimeInSeconds >= 3600
+                ? `${Math.floor(totalTimeInSeconds / 3600)}h ${Math.floor((totalTimeInSeconds % 3600) / 60)}m`
+                : `${Math.floor(totalTimeInSeconds / 60)} minutes`}
+            </Text>
             <Text fontSize="xs" color="orange.600">
               ({question.length} questions × 30 seconds each)
             </Text>
@@ -1060,6 +845,7 @@ const TakeTest = ({ quest, handleFullScreen }) => {
         </Box>
       )}
 
+      {/* Body */}
       <Flex flex="1" overflow="hidden">
         <VStack flex="1" spacing={0} align="stretch" overflow="hidden">
           <Flex
@@ -1074,18 +860,16 @@ const TakeTest = ({ quest, handleFullScreen }) => {
             <Text fontSize="sm" color="gray.600">
               SECTIONS |{" "}
               <Text as="span" fontWeight="600">
-                Elementary maths
+                {getLocalStorage("Subject") || "General"}
               </Text>
             </Text>
             <ReportQuestionDropdown />
           </Flex>
-
           <Box px={6} py={3} bg="white">
             <Text fontWeight="600" fontSize="md">
               Question no {currentquestion + 1}
             </Text>
           </Box>
-
           <Box
             flex="1"
             overflow="auto"
@@ -1098,7 +882,6 @@ const TakeTest = ({ quest, handleFullScreen }) => {
             <Text mb={6} fontSize="md" lineHeight="tall">
               {question[currentquestion]?.qus}
             </Text>
-
             <RadioGroup
               value={allAns[currentquestion] || ""}
               onChange={(value) => handleAnswer(currentquestion, value)}
@@ -1116,10 +899,7 @@ const TakeTest = ({ quest, handleFullScreen }) => {
                     bg={allAns[currentquestion] === d ? "blue.50" : "white"}
                     cursor="pointer"
                     transition="all 0.2s"
-                    _hover={{
-                      borderColor: "blue.300",
-                      bg: "gray.50",
-                    }}
+                    _hover={{ borderColor: "blue.300", bg: "gray.50" }}
                     onClick={() => handleAnswer(d, i)}
                   >
                     <Radio
@@ -1134,7 +914,6 @@ const TakeTest = ({ quest, handleFullScreen }) => {
               </VStack>
             </RadioGroup>
           </Box>
-
           <Flex
             px={6}
             py={3}
@@ -1150,7 +929,7 @@ const TakeTest = ({ quest, handleFullScreen }) => {
                 size="sm"
                 variant="outline"
                 colorScheme="blue"
-                onClick={() => markedQuestion()}
+                onClick={markedQuestion}
               >
                 Review & Next
               </Button>
@@ -1163,10 +942,9 @@ const TakeTest = ({ quest, handleFullScreen }) => {
                 Clear Response
               </Button>
             </HStack>
-
             <Button
               size="sm"
-              display={{ base: "none", md: "inline-flex", lg: "inline-flex" }}
+              display={{ base: "none", md: "inline-flex" }}
               colorScheme="blue"
               onClick={() => handlequestion("svn")}
             >
@@ -1185,7 +963,6 @@ const TakeTest = ({ quest, handleFullScreen }) => {
             Save & Next
           </Button>
         </VStack>
-
         {!isMobile && (
           <Box
             w="320px"
@@ -1200,6 +977,7 @@ const TakeTest = ({ quest, handleFullScreen }) => {
         )}
       </Flex>
 
+      {/* Mobile drawer */}
       {isMobile && (
         <>
           <Button
@@ -1215,7 +993,6 @@ const TakeTest = ({ quest, handleFullScreen }) => {
           >
             <HamburgerIcon w={6} h={6} />
           </Button>
-
           <Drawer onClose={onClose} isOpen={isOpen} size="xs" placement="right">
             <DrawerOverlay />
             <DrawerContent bg="#4285f4">
@@ -1234,6 +1011,7 @@ const TakeTest = ({ quest, handleFullScreen }) => {
         </>
       )}
 
+      {/* Submit dialog */}
       <AlertDialog
         isOpen={isSubmitDialogOpen}
         leastDestructiveRef={cancelSubmitRef}
@@ -1245,7 +1023,6 @@ const TakeTest = ({ quest, handleFullScreen }) => {
             <AlertDialogHeader fontSize="lg" fontWeight="bold">
               Submit Test
             </AlertDialogHeader>
-
             <AlertDialogBody>
               <VStack align="start" spacing={3}>
                 <Text>Are you sure you want to submit the test?</Text>
@@ -1278,7 +1055,6 @@ const TakeTest = ({ quest, handleFullScreen }) => {
                 </Text>
               </VStack>
             </AlertDialogBody>
-
             <AlertDialogFooter>
               <Button ref={cancelSubmitRef} onClick={handleCancelSubmit}>
                 Cancel
