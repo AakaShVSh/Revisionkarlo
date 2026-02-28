@@ -13,21 +13,6 @@ const toSlug = (str) =>
 
 /* ─────────────────────────────────────────────
    POST /tests/create
-   Body: {
-     title,                        required
-     createdBy,                    required (userId)
-     coachingId?,                  link to a Coaching doc
-     examType?,                    "SSC"|"UPSC"|"BANKING"|"RAILWAY"|"STATE_PSC"|"OTHER"
-     subject?,                     "math"|"english"|"gs"|"vocabulary"|"reasoning"
-     difficultyLevel?,             "easy"|"medium"|"hard"
-     timeLimitMin?,                default 30
-     visibility?,                  "public" (default) | "private"
-     password?,                    only used when visibility=private
-     slug?,                        auto-generated from title+timestamp if not passed
-     questionDocIds?: [ObjectId],  pull all question items from these Question docs
-     inlineQuestions?: [{...}]     OR pass question items directly in the body
-   }
-   Both questionDocIds and inlineQuestions can be combined.
 ───────────────────────────────────────────── */
 router.post("/create", async (req, res) => {
   try {
@@ -38,7 +23,8 @@ router.post("/create", async (req, res) => {
         .status(400)
         .send({ message: "createdBy (userId) is required" });
 
-    rest.slug = rest.slug || `${toSlug(title)}-${Date.now()}`;
+    // Always generate a unique slug (title + timestamp)
+    rest.slug = `${toSlug(title)}-${Date.now()}`;
 
     let questions = [];
 
@@ -48,7 +34,7 @@ router.post("/create", async (req, res) => {
         .exec();
       docs.forEach((doc) => {
         doc.question.forEach((item) => {
-          questions.push({ questionDocId: doc._id, ...item });
+          questions.push({ sourceId: item._id, ...item });
         });
       });
     }
@@ -57,15 +43,13 @@ router.post("/create", async (req, res) => {
       questions = [...questions, ...inlineQuestions];
     }
 
+    // Sync visibility → accessType
+    if (rest.visibility && !rest.accessType) rest.accessType = rest.visibility;
+
     const test = await Test.create({ title, questions, ...rest });
     return res.status(201).send({ message: "Test created", data: test });
   } catch (error) {
-    if (error.code === 11000)
-      return res
-        .status(409)
-        .send({
-          message: "Slug conflict. Change title or pass a custom slug.",
-        });
+    console.error("Create test error:", error);
     return res.status(400).send({ message: error.message });
   }
 });
@@ -73,11 +57,6 @@ router.post("/create", async (req, res) => {
 /* ─────────────────────────────────────────────
    GET /tests
    Returns test metadata only (no questions, no password).
-   Examples:
-     GET /tests
-     GET /tests?coachingId=xxx
-     GET /tests?examType=SSC
-     GET /tests?subject=math&visibility=public
 ───────────────────────────────────────────── */
 router.get("/", async (req, res) => {
   try {
@@ -100,7 +79,6 @@ router.get("/", async (req, res) => {
 /* ─────────────────────────────────────────────
    GET /tests/id/:id
    Get full test by mongo _id (admin / coach use).
-   Returns questions but strips the password field.
 ───────────────────────────────────────────── */
 router.get("/id/:id", async (req, res) => {
   try {
@@ -115,8 +93,6 @@ router.get("/id/:id", async (req, res) => {
 
 /* ─────────────────────────────────────────────
    GET /tests/:id/leaderboard
-   Top 20 results for a test sorted by score desc, time asc.
-   NOTE: declared before /:slug so "leaderboard" is not treated as a slug.
 ───────────────────────────────────────────── */
 router.get("/:id/leaderboard", async (req, res) => {
   try {
@@ -134,10 +110,78 @@ router.get("/:id/leaderboard", async (req, res) => {
 });
 
 /* ─────────────────────────────────────────────
+   GET /tests/:id/stats
+   Aggregate stats for a test (for coach detail view)
+───────────────────────────────────────────── */
+router.get("/:id/stats", async (req, res) => {
+  try {
+    const testId = req.params.id;
+    const results = await Result.find({ testId }).lean().exec();
+
+    if (!results.length) {
+      return res.status(200).send({
+        status: 200,
+        data: {
+          totalAttempts: 0,
+          avgScore: 0,
+          avgPercentage: 0,
+          passCount: 0,
+          passRate: 0,
+          highestScore: 0,
+          lowestScore: 0,
+        },
+      });
+    }
+
+    const totalAttempts = results.length;
+    const scores = results.map((r) => r.scorePercentage || r.percentage || 0);
+    const avgPercentage = scores.reduce((a, b) => a + b, 0) / totalAttempts;
+    const passCount = results.filter(
+      (r) => (r.scorePercentage || r.percentage || 0) >= 40,
+    ).length;
+
+    return res.status(200).send({
+      status: 200,
+      data: {
+        totalAttempts,
+        avgPercentage: Math.round(avgPercentage),
+        passCount,
+        passRate: Math.round((passCount / totalAttempts) * 100),
+        highestScore: Math.max(...scores),
+        lowestScore: Math.min(...scores),
+      },
+    });
+  } catch (error) {
+    return res.status(500).send({ error: error.message });
+  }
+});
+
+/* ─────────────────────────────────────────────
+   GET /tests/token/:token
+   Access a private test via access token (share link)
+───────────────────────────────────────────── */
+router.get("/token/:token", async (req, res) => {
+  try {
+    const test = await Test.findOne({
+      accessToken: req.params.token,
+      isActive: true,
+    })
+      .lean()
+      .exec();
+    if (!test)
+      return res
+        .status(404)
+        .send({ message: "Test not found or link expired" });
+    const { password: _p, accessToken: _t, ...safeTest } = test;
+    return res.status(200).send({ status: 200, data: safeTest });
+  } catch (error) {
+    return res.status(500).send({ error: error.message });
+  }
+});
+
+/* ─────────────────────────────────────────────
    GET /tests/:slug
    Public test page by URL slug.
-   Private tests require ?password=xxx in query.
-   Password field is always stripped from the response.
 ───────────────────────────────────────────── */
 router.get("/:slug", async (req, res) => {
   try {
@@ -146,7 +190,7 @@ router.get("/:slug", async (req, res) => {
       .exec();
     if (!test) return res.status(404).send({ message: "Test not found" });
 
-    if (test.visibility === "private") {
+    if (test.visibility === "private" || test.accessType === "private") {
       if (!req.query.password || req.query.password !== test.password) {
         return res
           .status(403)
@@ -165,11 +209,10 @@ router.get("/:slug", async (req, res) => {
 
 /* ─────────────────────────────────────────────
    PATCH /tests/:id
-   Update any field: title, examType, timeLimitMin,
-   visibility, password, isActive, questions array …
 ───────────────────────────────────────────── */
 router.patch("/:id", async (req, res) => {
   try {
+    if (req.body.visibility) req.body.accessType = req.body.visibility;
     const test = await Test.findByIdAndUpdate(req.params.id, req.body, {
       new: true,
       runValidators: true,

@@ -1,5 +1,12 @@
 // src/components/CoachingPage.jsx
 //
+// FIXES IN THIS VERSION:
+//  1. Tabs built from coaching.examTypes (not from tests) → shows all 3 courses immediately
+//  2. Courses stat uses coaching.examTypes.length
+//  3. Default tab is "All" (not auto-selected exam type)
+//  4. CreateTestDrawer receives coachingExamTypes → exam dropdown pre-fills correctly
+//  5. joinToken index drop → run in mongosh: db.tests.dropIndex("joinToken_1")
+//
 // EXACT FLOW:
 //
 // /coaching (root page):
@@ -56,6 +63,7 @@ import {
   AlertDialogHeader,
   AlertDialogBody,
   AlertDialogFooter,
+  Badge,
 } from "@chakra-ui/react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
@@ -83,7 +91,6 @@ import {
 } from "react-icons/fa";
 import * as XLSX from "xlsx";
 
-// ─── Config ──────────────────────────────────────────────────────────────────
 const BASE = "http://localhost:80";
 
 const apiFetch = async (path, opts = {}) => {
@@ -111,10 +118,13 @@ const EXAM_COLORS = {
   SSC: { bg: "#eff6ff", color: "#2563eb" },
   UPSC: { bg: "#f5f3ff", color: "#7c3aed" },
   BANK: { bg: "#ecfeff", color: "#0891b2" },
+  BANKING: { bg: "#ecfeff", color: "#0891b2" },
   RAILWAY: { bg: "#fff7ed", color: "#ea580c" },
   STATE: { bg: "#f0fdf4", color: "#16a34a" },
+  STATE_PSC: { bg: "#f0fdf4", color: "#16a34a" },
   DEFENCE: { bg: "#fef2f2", color: "#dc2626" },
   OTHER: { bg: "#f8fafc", color: "#6b7280" },
+  GENERAL: { bg: "#f1f5f9", color: "#475569" },
 };
 
 const toSlug = (s) =>
@@ -124,7 +134,6 @@ const toSlug = (s) =>
     .replace(/\s+/g, "-")
     .replace(/[^a-z0-9-]/g, "");
 
-// Gets logged-in user from sessionStorage (set by auth.js after sign-in)
 const getCurrentUser = () => {
   try {
     return JSON.parse(sessionStorage.getItem("user") || "null");
@@ -133,7 +142,7 @@ const getCurrentUser = () => {
   }
 };
 
-// ─── Excel helpers ────────────────────────────────────────────────────────────
+// ─── Excel helpers ────────────────────────────────────────────────
 const downloadExcelTemplate = () => {
   const headers = [
     "Question",
@@ -141,7 +150,7 @@ const downloadExcelTemplate = () => {
     "Option B",
     "Option C",
     "Option D",
-    "Answer (1-4)",
+    "Answer (0-3)",
     "Explanation",
   ];
   const example = [
@@ -150,8 +159,8 @@ const downloadExcelTemplate = () => {
     "4",
     "5",
     "6",
-    "2",
-    "Basic addition: 2+2=4",
+    "1",
+    "Basic addition: 2+2=4 which is option B (index 1)",
   ];
   const ws = XLSX.utils.aoa_to_sheet([headers, example]);
   ws["!cols"] = [
@@ -187,7 +196,12 @@ const parseExcelFile = (file) =>
               String(r[3] || ""),
               String(r[4] || ""),
             ],
-            answer: parseInt(r[5]) || 1,
+            // answer is 0-based index; if user enters 1-4 convert to 0-based
+            answer: (() => {
+              const raw = parseInt(r[5]);
+              if (isNaN(raw)) return 0;
+              return raw >= 1 && raw <= 4 ? raw - 1 : raw;
+            })(),
             explanation: String(r[6] || ""),
           }));
         resolve(qs);
@@ -199,10 +213,16 @@ const parseExcelFile = (file) =>
     reader.readAsBinaryString(file);
   });
 
-// ═════════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════
 // CREATE TEST DRAWER
-// ═════════════════════════════════════════════════════════════════════════════
-function CreateTestDrawer({ isOpen, onClose, coachingId, onCreated }) {
+// ═══════════════════════════════════════════════
+function CreateTestDrawer({
+  isOpen,
+  onClose,
+  coachingId,
+  coachingExamTypes = [],
+  onCreated,
+}) {
   const toast = useToast();
   const fileRef = useRef();
   const [busy, setBusy] = useState(false);
@@ -218,6 +238,14 @@ function CreateTestDrawer({ isOpen, onClose, coachingId, onCreated }) {
     password: "",
   });
   const [errs, setErrs] = useState({});
+
+  // Pre-select first exam type from coaching
+  useEffect(() => {
+    if (coachingExamTypes.length && !form.examType) {
+      setForm((p) => ({ ...p, examType: coachingExamTypes[0] }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [coachingExamTypes]);
 
   const sf = (k) => (e) => {
     setForm((p) => ({ ...p, [k]: e.target.value }));
@@ -250,32 +278,38 @@ function CreateTestDrawer({ isOpen, onClose, coachingId, onCreated }) {
       setParseError("Please upload an Excel file with questions.");
       return;
     }
+
     setBusy(true);
     try {
       const user = getCurrentUser();
+      if (!user?._id) throw new Error("Please sign in first");
+
       const payload = {
         title: form.title.trim(),
         coachingId,
-        examType: form.examType || undefined,
+        examType: form.examType || "OTHER",
         subject: form.subject || undefined,
         timeLimitMin: Number(form.timeLimitMin) || 30,
         visibility: form.visibility,
-        createdBy: user?._id,
+        accessType: form.visibility, // sync both fields
+        createdBy: user._id,
         inlineQuestions: parsedQs,
         ...(form.visibility === "private" && form.password
           ? { password: form.password }
           : {}),
       };
+
       const res = await apiFetch("/tests/create", {
         method: "POST",
         body: JSON.stringify(payload),
       });
       toast({ title: "Test created!", status: "success", duration: 3000 });
       onCreated(res.data);
-      // reset
+
+      // Reset form
       setForm({
         title: "",
-        examType: "",
+        examType: coachingExamTypes[0] || "",
         subject: "",
         timeLimitMin: 30,
         visibility: "public",
@@ -298,6 +332,12 @@ function CreateTestDrawer({ isOpen, onClose, coachingId, onCreated }) {
     setErrs({});
     onClose();
   };
+
+  // Exam types dropdown: coaching's own types first (marked ✓), then remaining global types
+  const examOptions = [
+    ...coachingExamTypes,
+    ...EXAM_TYPES.filter((e) => !coachingExamTypes.includes(e)),
+  ];
 
   return (
     <Drawer isOpen={isOpen} onClose={handleClose} placement="right" size="md">
@@ -339,7 +379,6 @@ function CreateTestDrawer({ isOpen, onClose, coachingId, onCreated }) {
 
         <DrawerBody px={7} py={6} overflowY="auto">
           <Stack spacing={5}>
-            {/* Test Name */}
             <FormControl isRequired isInvalid={!!errs.title}>
               <FormLabel
                 fontSize="12px"
@@ -367,7 +406,6 @@ function CreateTestDrawer({ isOpen, onClose, coachingId, onCreated }) {
               <FormErrorMessage>{errs.title}</FormErrorMessage>
             </FormControl>
 
-            {/* Exam + Subject */}
             <Flex gap={3} direction={{ base: "column", sm: "row" }}>
               <FormControl flex={1}>
                 <FormLabel
@@ -389,11 +427,24 @@ function CreateTestDrawer({ isOpen, onClose, coachingId, onCreated }) {
                   borderColor="#e2e8f0"
                 >
                   <option value="">Select…</option>
-                  {EXAM_TYPES.map((e) => (
-                    <option key={e} value={e}>
-                      {e}
-                    </option>
-                  ))}
+                  {coachingExamTypes.length > 0 && (
+                    <optgroup label="This Coaching">
+                      {coachingExamTypes.map((e) => (
+                        <option key={e} value={e}>
+                          {e}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                  <optgroup label="Other">
+                    {EXAM_TYPES.filter(
+                      (e) => !coachingExamTypes.includes(e),
+                    ).map((e) => (
+                      <option key={e} value={e}>
+                        {e}
+                      </option>
+                    ))}
+                  </optgroup>
                 </Select>
               </FormControl>
               <FormControl flex={1}>
@@ -432,7 +483,6 @@ function CreateTestDrawer({ isOpen, onClose, coachingId, onCreated }) {
               </FormControl>
             </Flex>
 
-            {/* Time + Visibility */}
             <Flex gap={3} direction={{ base: "column", sm: "row" }}>
               <FormControl flex={1}>
                 <FormLabel
@@ -516,7 +566,6 @@ function CreateTestDrawer({ isOpen, onClose, coachingId, onCreated }) {
 
             <Divider />
 
-            {/* Excel section */}
             <Box>
               <Flex justify="space-between" align="center" mb={3}>
                 <Text
@@ -542,7 +591,6 @@ function CreateTestDrawer({ isOpen, onClose, coachingId, onCreated }) {
                 </Button>
               </Flex>
 
-              {/* Format guide */}
               <Box
                 bg="#f0fdf4"
                 border="1px solid #bbf7d0"
@@ -559,7 +607,7 @@ function CreateTestDrawer({ isOpen, onClose, coachingId, onCreated }) {
                   "Option B",
                   "Option C",
                   "Option D",
-                  "Answer (1-4)",
+                  "Answer (0=A, 1=B, 2=C, 3=D)",
                   "Explanation",
                 ].map((col, i) => (
                   <Flex
@@ -577,12 +625,11 @@ function CreateTestDrawer({ isOpen, onClose, coachingId, onCreated }) {
                   </Flex>
                 ))}
                 <Text fontSize="10px" color="#16a34a" mt={2}>
-                  * Answer: 1 = Option A, 2 = Option B, 3 = Option C, 4 = Option
+                  * Answer column: 0=Option A, 1=Option B, 2=Option C, 3=Option
                   D
                 </Text>
               </Box>
 
-              {/* Upload zone */}
               <Box
                 border="2px dashed"
                 borderColor={
@@ -664,7 +711,6 @@ function CreateTestDrawer({ isOpen, onClose, coachingId, onCreated }) {
               </Box>
             </Box>
 
-            {/* Submit */}
             <Button
               h="50px"
               borderRadius="12px"
@@ -694,9 +740,9 @@ function CreateTestDrawer({ isOpen, onClose, coachingId, onCreated }) {
   );
 }
 
-// ═════════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════
 // ADD COACHING DRAWER
-// ═════════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════
 function AddCoachingDrawer({ isOpen, onClose, onCreated }) {
   const toast = useToast();
   const [busy, setBusy] = useState(false);
@@ -751,7 +797,7 @@ function AddCoachingDrawer({ isOpen, onClose, onCreated }) {
         status: "success",
         duration: 3000,
       });
-      onCreated(res.data); // <-- parent receives the new coaching object
+      onCreated(res.data);
     } catch (err) {
       toast({ title: err.message, status: "error", duration: 4000 });
     } finally {
@@ -899,7 +945,7 @@ function AddCoachingDrawer({ isOpen, onClose, onCreated }) {
               <Textarea
                 value={form.description}
                 onChange={sf("description")}
-                placeholder="Teaching methodology, batch details, achievements…"
+                placeholder="Teaching methodology, batch details…"
                 borderRadius="10px"
                 fontSize="14px"
                 rows={3}
@@ -1051,14 +1097,13 @@ function AddCoachingDrawer({ isOpen, onClose, onCreated }) {
   );
 }
 
-// ═════════════════════════════════════════════════════════════════════════════
-// COACHING DETAIL  — shown when owner visits /coaching OR anyone visits /coaching/:slug
-// ═════════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════
+// COACHING DETAIL
+// ═══════════════════════════════════════════════
 function CoachingDetail({ coaching, onDeleted }) {
   const navigate = useNavigate();
   const toast = useToast();
   const cancelRef = useRef();
-
   const {
     isOpen: testOpen,
     onOpen: openTest,
@@ -1072,11 +1117,11 @@ function CoachingDetail({ coaching, onDeleted }) {
 
   const [tests, setTests] = useState([]);
   const [loadingT, setLoadingT] = useState(true);
+  // FIX: default activeTab is null = "All" tab
   const [activeTab, setActiveTab] = useState(null);
   const [copied, setCopied] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
 
-  // Is the currently logged-in user the owner of this coaching?
   const user = getCurrentUser();
   const isOwner = Boolean(
     user &&
@@ -1087,14 +1132,14 @@ function CoachingDetail({ coaching, onDeleted }) {
 
   const shareUrl = `${window.location.origin}/coaching/${coaching.slug}`;
 
-  // Load tests for this coaching
   const loadTests = useCallback(() => {
     setLoadingT(true);
     apiFetch(`/tests?coachingId=${coaching._id}`)
       .then((r) => {
         const ts = r.data ?? [];
         setTests(ts);
-        setActiveTab(ts[0]?.examType || null);
+        // FIX: always start on "All" tab
+        setActiveTab(null);
       })
       .catch(() => {})
       .finally(() => setLoadingT(false));
@@ -1116,7 +1161,7 @@ function CoachingDetail({ coaching, onDeleted }) {
       await apiFetch(`/coaching/${coaching._id}`, { method: "DELETE" });
       toast({ title: "Coaching removed", status: "success", duration: 3000 });
       closeDel();
-      onDeleted?.(); // tells parent to go back to list view
+      onDeleted?.();
     } catch (err) {
       toast({ title: err.message, status: "error", duration: 4000 });
     }
@@ -1145,19 +1190,34 @@ function CoachingDetail({ coaching, onDeleted }) {
     });
   };
 
-  // Build course tabs from actual tests, fall back to coaching's exam types
-  const courseExams = [
-    ...new Set(tests.map((t) => t.examType).filter(Boolean)),
+  // FIX: Use coaching.examTypes as the source of truth for tabs
+  // This means all exam types registered with the coaching appear immediately,
+  // even before any tests are created under them.
+  const coachingExamTypes = coaching.examTypes || [];
+
+  // Collect any extra exam types used in tests but not in coaching.examTypes
+  const extraExamTypes = [
+    ...new Set(
+      tests
+        .map((t) => t.examType)
+        .filter((et) => et && !coachingExamTypes.includes(et)),
+    ),
   ];
-  const tabs = courseExams.length ? courseExams : coaching.examTypes || [];
+
+  // Final tabs = coaching exam types + any extras from tests
+  const tabs = [...coachingExamTypes, ...extraExamTypes];
+
+  // Filter tests for active tab; null = all tests
   const activeTests = activeTab
     ? tests.filter((t) => t.examType === activeTab)
     : tests;
+
+  // Total students across all tests
   const totalStu = tests.reduce((a, t) => a + (t.totalAttempts || 0), 0);
 
   return (
     <Box minH="100vh" bg="#f8fafc" fontFamily="'Sora',sans-serif">
-      {/* ══════════════════════ HERO SECTION ══════════════════════ */}
+      {/* Hero */}
       <Box
         bg="linear-gradient(135deg,#0f1e3a 0%,#1e3a5f 45%,#2d5fa8 100%)"
         px={{ base: 4, md: 8 }}
@@ -1166,7 +1226,6 @@ function CoachingDetail({ coaching, onDeleted }) {
         position="relative"
         overflow="hidden"
       >
-        {/* background circles */}
         <Box
           position="absolute"
           right="-80px"
@@ -1176,18 +1235,8 @@ function CoachingDetail({ coaching, onDeleted }) {
           borderRadius="full"
           bg="rgba(255,255,255,.035)"
         />
-        <Box
-          position="absolute"
-          left="40%"
-          bottom="-100px"
-          w="250px"
-          h="250px"
-          borderRadius="full"
-          bg="rgba(255,255,255,.025)"
-        />
 
         <Box maxW="1100px" mx="auto" position="relative" zIndex={1}>
-          {/* ← Back button */}
           <Flex
             align="center"
             gap={2}
@@ -1205,13 +1254,11 @@ function CoachingDetail({ coaching, onDeleted }) {
             </Text>
           </Flex>
 
-          {/* Identity row */}
           <Flex
             align="flex-start"
             gap={{ base: 4, md: 6 }}
             flexWrap={{ base: "wrap", md: "nowrap" }}
           >
-            {/* Avatar */}
             <Flex
               w={{ base: "60px", md: "80px" }}
               h={{ base: "60px", md: "80px" }}
@@ -1229,7 +1276,6 @@ function CoachingDetail({ coaching, onDeleted }) {
             </Flex>
 
             <Box flex={1} minW={0}>
-              {/* Name + owner badge */}
               <Flex align="center" gap={3} flexWrap="wrap" mb={3}>
                 <Text
                   fontSize={{ base: "26px", md: "42px" }}
@@ -1258,7 +1304,6 @@ function CoachingDetail({ coaching, onDeleted }) {
                 )}
               </Flex>
 
-              {/* Meta */}
               <Flex
                 align="center"
                 flexWrap="wrap"
@@ -1334,9 +1379,9 @@ function CoachingDetail({ coaching, onDeleted }) {
                 )}
               </Flex>
 
-              {/* Exam pills */}
+              {/* Show exam types from coaching (not derived from tests) */}
               <Flex flexWrap="wrap" gap={2}>
-                {coaching.examTypes?.map((ex) => (
+                {coachingExamTypes.map((ex) => (
                   <Box
                     key={ex}
                     bg="rgba(255,255,255,.12)"
@@ -1355,7 +1400,7 @@ function CoachingDetail({ coaching, onDeleted }) {
             </Box>
           </Flex>
 
-          {/* ══════════ OWNER PANEL — only visible to owner ══════════ */}
+          {/* Owner controls */}
           {isOwner && (
             <Box
               mt={10}
@@ -1374,8 +1419,6 @@ function CoachingDetail({ coaching, onDeleted }) {
               >
                 Owner Controls
               </Text>
-
-              {/* ── Share link ── */}
               <Box mb={7}>
                 <Text
                   fontSize="13px"
@@ -1402,7 +1445,6 @@ function CoachingDetail({ coaching, onDeleted }) {
                     overflow="hidden"
                     textOverflow="ellipsis"
                     whiteSpace="nowrap"
-                    letterSpacing="0.3px"
                   >
                     {shareUrl}
                   </Box>
@@ -1426,33 +1468,8 @@ function CoachingDetail({ coaching, onDeleted }) {
                     {copied ? "Copied!" : "Copy Link"}
                   </Button>
                 </Flex>
-
-                {/* Slug display */}
-                <Flex align="center" gap={2} mt={3}>
-                  <Text
-                    fontSize="12px"
-                    color="rgba(255,255,255,.35)"
-                    fontWeight={500}
-                  >
-                    Coaching slug:
-                  </Text>
-                  <Box
-                    bg="rgba(0,0,0,.3)"
-                    px={3}
-                    py="3px"
-                    borderRadius="8px"
-                    fontFamily="monospace"
-                    fontSize="12px"
-                    color="rgba(255,255,255,.7)"
-                    fontWeight={700}
-                    letterSpacing="0.5px"
-                  >
-                    {coaching.slug}
-                  </Box>
-                </Flex>
               </Box>
 
-              {/* ── Action buttons ── */}
               <Flex gap={3} flexWrap="wrap">
                 <Button
                   leftIcon={<FaPlus />}
@@ -1494,7 +1511,7 @@ function CoachingDetail({ coaching, onDeleted }) {
             </Box>
           )}
 
-          {/* Stats strip */}
+          {/* Stats — FIX: Courses count uses coaching.examTypes.length */}
           <Flex
             mt={10}
             gap={8}
@@ -1509,7 +1526,11 @@ function CoachingDetail({ coaching, onDeleted }) {
                 label: "Total Tests",
               },
               { icon: FaUsers, value: totalStu, label: "Total Students" },
-              { icon: FaBookOpen, value: tabs.length, label: "Courses" },
+              {
+                icon: FaBookOpen,
+                value: coachingExamTypes.length || 0,
+                label: "Courses",
+              },
             ].map((s) => (
               <Flex key={s.label} align="center" gap={3}>
                 <Icon
@@ -1543,9 +1564,8 @@ function CoachingDetail({ coaching, onDeleted }) {
         </Box>
       </Box>
 
-      {/* ══════════════════════ BODY ══════════════════════ */}
+      {/* Body */}
       <Box maxW="1100px" mx="auto" px={{ base: 4, md: 8 }} py={8}>
-        {/* About */}
         {coaching.description && (
           <Box mb={10} pb={10} borderBottom="1px solid #e2e8f0">
             <Text
@@ -1564,7 +1584,6 @@ function CoachingDetail({ coaching, onDeleted }) {
           </Box>
         )}
 
-        {/* Courses & Tests */}
         <Box>
           <Flex justify="space-between" align="center" mb={5}>
             <Text
@@ -1593,12 +1612,34 @@ function CoachingDetail({ coaching, onDeleted }) {
             )}
           </Flex>
 
-          {/* Course tabs */}
+          {/* FIX: Tabs from coaching.examTypes — visible even with 0 tests */}
           {tabs.length > 0 && (
             <Flex gap={2} mb={6} flexWrap="wrap">
+              {/* "All" tab */}
+              <Box
+                px={4}
+                py="8px"
+                borderRadius="10px"
+                cursor="pointer"
+                border="1.5px solid"
+                borderColor={!activeTab ? "#4a72b8" : "#e2e8f0"}
+                bg={!activeTab ? "#eff6ff" : "white"}
+                color={!activeTab ? "#2563eb" : "#374151"}
+                fontSize="13px"
+                fontWeight={!activeTab ? 700 : 500}
+                onClick={() => setActiveTab(null)}
+                transition="all .15s"
+              >
+                All
+                <Text as="span" ml={2} fontSize="11px" opacity={0.7}>
+                  ({tests.length})
+                </Text>
+              </Box>
+
               {tabs.map((tab) => {
                 const isA = activeTab === tab;
                 const cl = EXAM_COLORS[tab] || EXAM_COLORS.OTHER;
+                const tabCount = tests.filter((t) => t.examType === tab).length;
                 return (
                   <Box
                     key={tab}
@@ -1622,7 +1663,7 @@ function CoachingDetail({ coaching, onDeleted }) {
                   >
                     {tab}
                     <Text as="span" ml={2} fontSize="11px" opacity={0.7}>
-                      ({tests.filter((t) => t.examType === tab).length})
+                      ({tabCount})
                     </Text>
                   </Box>
                 );
@@ -1658,8 +1699,12 @@ function CoachingDetail({ coaching, onDeleted }) {
                 mb={isOwner ? 5 : 0}
               >
                 {isOwner
-                  ? "No tests yet — create your first test for students!"
-                  : "No tests yet for this course"}
+                  ? activeTab
+                    ? `No tests yet for ${activeTab} — create one!`
+                    : "No tests yet — create your first test for students!"
+                  : activeTab
+                    ? `No ${activeTab} tests yet`
+                    : "No tests yet for this coaching"}
               </Text>
               {isOwner && (
                 <Button
@@ -1683,61 +1728,23 @@ function CoachingDetail({ coaching, onDeleted }) {
               border="1px solid #e2e8f0"
               overflow="hidden"
             >
-              {/* Header row */}
               <Flex px={6} py={3} bg="#f8fafc" borderBottom="1px solid #e2e8f0">
-                <Text
-                  flex={3}
-                  fontSize="11px"
-                  fontWeight={700}
-                  color="#94a3b8"
-                  textTransform="uppercase"
-                  letterSpacing=".8px"
-                >
-                  Test Name
-                </Text>
-                <Text
-                  flex={1}
-                  fontSize="11px"
-                  fontWeight={700}
-                  color="#94a3b8"
-                  textTransform="uppercase"
-                  letterSpacing=".8px"
-                  display={{ base: "none", sm: "block" }}
-                >
-                  Qs
-                </Text>
-                <Text
-                  flex={1}
-                  fontSize="11px"
-                  fontWeight={700}
-                  color="#94a3b8"
-                  textTransform="uppercase"
-                  letterSpacing=".8px"
-                  display={{ base: "none", md: "block" }}
-                >
-                  Time
-                </Text>
-                <Text
-                  flex={1}
-                  fontSize="11px"
-                  fontWeight={700}
-                  color="#94a3b8"
-                  textTransform="uppercase"
-                  letterSpacing=".8px"
-                  display={{ base: "none", sm: "block" }}
-                >
-                  Attempts
-                </Text>
-                <Text
-                  flex={1}
-                  fontSize="11px"
-                  fontWeight={700}
-                  color="#94a3b8"
-                  textTransform="uppercase"
-                  letterSpacing=".8px"
-                >
-                  Access
-                </Text>
+                {["Test Name", "Questions", "Time", "Attempts", "Access"].map(
+                  (h, i) => (
+                    <Text
+                      key={h}
+                      flex={i === 0 ? 3 : 1}
+                      fontSize="11px"
+                      fontWeight={700}
+                      color="#94a3b8"
+                      textTransform="uppercase"
+                      letterSpacing=".8px"
+                      display={{ base: i > 2 ? "none" : "block", md: "block" }}
+                    >
+                      {h}
+                    </Text>
+                  ),
+                )}
                 <Box w={isOwner ? "110px" : "80px"} />
               </Flex>
 
@@ -1765,7 +1772,7 @@ function CoachingDetail({ coaching, onDeleted }) {
                       color="#0f172a"
                       noOfLines={1}
                     >
-                      {t.title || t.name}
+                      {t.title}
                     </Text>
                     {t.subject && (
                       <Text
@@ -1777,6 +1784,20 @@ function CoachingDetail({ coaching, onDeleted }) {
                         {t.subject}
                       </Text>
                     )}
+                    {t.examType && (
+                      <Badge
+                        fontSize="9px"
+                        mt={1}
+                        bg={(EXAM_COLORS[t.examType] || EXAM_COLORS.OTHER).bg}
+                        color={
+                          (EXAM_COLORS[t.examType] || EXAM_COLORS.OTHER).color
+                        }
+                        borderRadius="full"
+                        px={2}
+                      >
+                        {t.examType}
+                      </Badge>
+                    )}
                   </Box>
 
                   <Text
@@ -1786,7 +1807,7 @@ function CoachingDetail({ coaching, onDeleted }) {
                     color="#374151"
                     display={{ base: "none", sm: "block" }}
                   >
-                    {t.totalMarks ?? "—"}
+                    {t.totalMarks ?? t.questions?.length ?? "—"}
                   </Text>
 
                   <Flex
@@ -1797,7 +1818,7 @@ function CoachingDetail({ coaching, onDeleted }) {
                   >
                     <Icon as={FaClock} fontSize="11px" color="#94a3b8" />
                     <Text fontSize="13px" color="#64748b">
-                      {t.timeLimitMin ?? 30}m
+                      {t.timeLimitMin || t.timeLimit || 30}m
                     </Text>
                   </Flex>
 
@@ -1819,15 +1840,29 @@ function CoachingDetail({ coaching, onDeleted }) {
                       px={2}
                       py="3px"
                       borderRadius="6px"
-                      bg={t.visibility === "private" ? "#fef2f2" : "#f0fdf4"}
-                      color={t.visibility === "private" ? "#ef4444" : "#16a34a"}
+                      bg={
+                        (t.visibility || t.accessType) === "private"
+                          ? "#fef2f2"
+                          : "#f0fdf4"
+                      }
+                      color={
+                        (t.visibility || t.accessType) === "private"
+                          ? "#ef4444"
+                          : "#16a34a"
+                      }
                     >
                       <Icon
-                        as={t.visibility === "private" ? FaLock : FaUnlock}
+                        as={
+                          (t.visibility || t.accessType) === "private"
+                            ? FaLock
+                            : FaUnlock
+                        }
                         fontSize="9px"
                       />
                       <Text fontSize="10px" fontWeight={700}>
-                        {t.visibility === "private" ? "Private" : "Public"}
+                        {(t.visibility || t.accessType) === "private"
+                          ? "Private"
+                          : "Public"}
                       </Text>
                     </Flex>
                   </Box>
@@ -1848,7 +1883,7 @@ function CoachingDetail({ coaching, onDeleted }) {
                       cursor="pointer"
                       onClick={() => navigate(`/tests/${t._id}`)}
                     >
-                      Start →
+                      View →
                     </Box>
                     {isOwner && (
                       <Box
@@ -1860,7 +1895,6 @@ function CoachingDetail({ coaching, onDeleted }) {
                         fontSize="12px"
                         cursor="pointer"
                         _hover={{ bg: "#fee2e2" }}
-                        transition="bg .15s"
                         opacity={deletingId === t._id ? 0.5 : 1}
                         onClick={() =>
                           deletingId !== t._id && handleDeleteTest(t._id)
@@ -1881,15 +1915,15 @@ function CoachingDetail({ coaching, onDeleted }) {
         </Box>
       </Box>
 
-      {/* ── Create Test Drawer ── */}
+      {/* Pass coachingExamTypes so exam dropdown pre-fills in the drawer */}
       <CreateTestDrawer
         isOpen={testOpen}
         onClose={closeTest}
         coachingId={coaching._id}
+        coachingExamTypes={coachingExamTypes}
         onCreated={onTestCreated}
       />
 
-      {/* ── Remove Coaching Dialog ── */}
       <AlertDialog
         isOpen={delOpen}
         leastDestructiveRef={cancelRef}
@@ -1902,7 +1936,7 @@ function CoachingDetail({ coaching, onDeleted }) {
             borderRadius="16px"
             fontFamily="'Sora',sans-serif"
           >
-            <AlertDialogHeader fontSize="16px" fontWeight={800} color="#0f172a">
+            <AlertDialogHeader fontSize="16px" fontWeight={800}>
               Remove Coaching?
             </AlertDialogHeader>
             <AlertDialogBody>
@@ -1911,11 +1945,7 @@ function CoachingDetail({ coaching, onDeleted }) {
                 <Text as="span" fontWeight={700} color="#0f172a">
                   "{coaching.name}"
                 </Text>{" "}
-                from the directory. Your tests and student data will be
-                preserved.
-              </Text>
-              <Text fontSize="12px" color="#94a3b8" mt={3}>
-                You can contact support to restore it later.
+                from the directory.
               </Text>
             </AlertDialogBody>
             <AlertDialogFooter gap={3}>
@@ -1946,13 +1976,12 @@ function CoachingDetail({ coaching, onDeleted }) {
   );
 }
 
-// ═════════════════════════════════════════════════════════════════════════════
-// COACHING LIST  — shown when user has no coaching registered
-// ═════════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════
+// COACHING LIST
+// ═══════════════════════════════════════════════
 function CoachingList({ onCoachingCreated }) {
   const navigate = useNavigate();
   const { isOpen, onOpen, onClose } = useDisclosure();
-
   const [all, setAll] = useState([]);
   const [filtered, setFiltered] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1987,7 +2016,6 @@ function CoachingList({ onCoachingCreated }) {
     setFiltered(list);
   }, [query, examF, all]);
 
-  // When coaching is created → switch to detail view (handled by parent state)
   const handleCreated = (coaching) => {
     onClose();
     onCoachingCreated(coaching);
@@ -1995,7 +2023,6 @@ function CoachingList({ onCoachingCreated }) {
 
   return (
     <Box minH="100vh" bg="#f8fafc" fontFamily="'Sora',sans-serif">
-      {/* Header */}
       <Box
         bg="linear-gradient(135deg,#1e3a5f 0%,#2d5fa8 55%,#4a72b8 100%)"
         px={{ base: 4, md: 8 }}
@@ -2013,7 +2040,6 @@ function CoachingList({ onCoachingCreated }) {
           borderRadius="full"
           bg="rgba(255,255,255,.04)"
         />
-
         <Box maxW="1100px" mx="auto" position="relative" zIndex={1}>
           <Flex
             justify="space-between"
@@ -2064,7 +2090,6 @@ function CoachingList({ onCoachingCreated }) {
             </Button>
           </Flex>
 
-          {/* Search bar */}
           <Flex
             gap={3}
             bg="white"
@@ -2121,7 +2146,6 @@ function CoachingList({ onCoachingCreated }) {
         </Box>
       </Box>
 
-      {/* List */}
       <Box maxW="1100px" mx="auto" px={{ base: 4, md: 8 }} py={8}>
         <Text fontSize="12px" color="#94a3b8" fontWeight={600} mb={5}>
           {loading
@@ -2175,38 +2199,27 @@ function CoachingList({ onCoachingCreated }) {
             overflow="hidden"
           >
             <Flex px={6} py={3} bg="#f8fafc" borderBottom="1px solid #e2e8f0">
-              <Text
-                flex={3}
-                fontSize="11px"
-                fontWeight={700}
-                color="#94a3b8"
-                textTransform="uppercase"
-                letterSpacing=".8px"
-              >
-                Institute
-              </Text>
-              <Text
-                flex={2}
-                fontSize="11px"
-                fontWeight={700}
-                color="#94a3b8"
-                textTransform="uppercase"
-                letterSpacing=".8px"
-                display={{ base: "none", md: "block" }}
-              >
-                Exams
-              </Text>
-              <Text
-                flex={1}
-                fontSize="11px"
-                fontWeight={700}
-                color="#94a3b8"
-                textTransform="uppercase"
-                letterSpacing=".8px"
-                display={{ base: "none", sm: "block" }}
-              >
-                Location
-              </Text>
+              {[
+                ["Institute", 3],
+                ["Exams", 2],
+                ["Location", 1],
+              ].map(([h, f]) => (
+                <Text
+                  key={h}
+                  flex={f}
+                  fontSize="11px"
+                  fontWeight={700}
+                  color="#94a3b8"
+                  textTransform="uppercase"
+                  letterSpacing=".8px"
+                  display={{
+                    base: f === 1 || f === 2 ? "none" : "block",
+                    md: "block",
+                  }}
+                >
+                  {h}
+                </Text>
+              ))}
               <Box w="80px" />
             </Flex>
             {filtered.map((c, idx) => (
@@ -2343,27 +2356,18 @@ function CoachingList({ onCoachingCreated }) {
   );
 }
 
-// ═════════════════════════════════════════════════════════════════════════════
-// ROOT  — decides what to render for /coaching and /coaching/:slug
-// ═════════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════
+// ROOT
+// ═══════════════════════════════════════════════
 export default function CoachingPage() {
   const { slug } = useParams();
-
-  // ── State for /coaching (root) ──
-  // null = user has no coaching (show list)
-  // object = user's coaching (show detail)
-  // "loading" = still checking
   const [myCoaching, setMyCoaching] = useState("loading");
-
-  // ── State for /coaching/:slug ──
   const [slugCoaching, setSlugCoaching] = useState(null);
   const [slugLoading, setSlugLoading] = useState(false);
   const [slugError, setSlugError] = useState(false);
-
   const navigate = useNavigate();
   const user = getCurrentUser();
 
-  // ── /coaching/:slug — just fetch that coaching ──────────────────────────
   useEffect(() => {
     if (!slug) return;
     setSlugLoading(true);
@@ -2374,33 +2378,24 @@ export default function CoachingPage() {
       .finally(() => setSlugLoading(false));
   }, [slug]);
 
-  // ── /coaching root — check if logged-in user owns a coaching ───────────
   useEffect(() => {
-    if (slug) return; // not on root page
-
+    if (slug) return;
     if (!user?._id) {
-      // not logged in → show list
       setMyCoaching(null);
       return;
     }
-
-    // Fetch all coachings, find one owned by this user
     apiFetch("/coaching")
       .then((r) => {
-        const all = r.data ?? [];
-        const mine = all.find(
+        const mine = (r.data ?? []).find(
           (c) =>
             String(c.owner) === String(user._id) ||
             String(c.owner?._id) === String(user._id),
         );
-        setMyCoaching(mine || null); // null = no coaching → show list
+        setMyCoaching(mine || null);
       })
       .catch(() => setMyCoaching(null));
   }, [slug, user?._id]);
 
-  // ════════════════════
-  // Render: /coaching/:slug
-  // ════════════════════
   if (slug) {
     if (slugLoading)
       return (
@@ -2441,9 +2436,6 @@ export default function CoachingPage() {
     return <CoachingDetail coaching={slugCoaching} />;
   }
 
-  // ════════════════════
-  // Render: /coaching (root)
-  // ════════════════════
   if (myCoaching === "loading")
     return (
       <Flex minH="80vh" align="center" justify="center">
@@ -2451,16 +2443,14 @@ export default function CoachingPage() {
       </Flex>
     );
 
-  // User has a coaching → show their detail page directly
   if (myCoaching)
     return (
       <CoachingDetail
         coaching={myCoaching}
-        onDeleted={() => setMyCoaching(null)} // after removing, go back to list
+        onDeleted={() => setMyCoaching(null)}
       />
     );
 
-  // User has no coaching → show list; when they create one, switch to detail
   return (
     <CoachingList onCoachingCreated={(coaching) => setMyCoaching(coaching)} />
   );

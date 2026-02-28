@@ -401,7 +401,6 @@
 
 
 
-
 import React, { useEffect, useState } from "react";
 import { Routes, Route, useLocation } from "react-router-dom";
 import { useToast } from "@chakra-ui/react";
@@ -410,39 +409,37 @@ import ScrollToTop from "../helpers/ScrollToTop";
 import ProtectedRoute from "../helpers/ProtectedRoute";
 
 // ── Layout ─────────────────────────────────────────────────────────────────
-import Navbar from "./Navbar"; // ✅ exists (updated)
-import Footer from "./Footer"; // ✅ exists
+import Navbar from "./Navbar";
+import Footer from "./Footer";
 
 // ── Auth ───────────────────────────────────────────────────────────────────
-import Signin from "./Signin"; // ✅ exists
-import Signup from "./Signup"; // ✅ exists
-import ForgotPassword from "./ForgotPassword"; // ✅ exists
+import Signin from "./Signin";
+import Signup from "./Signup";
+import ForgotPassword from "./ForgotPassword";
 
 // ── Home ───────────────────────────────────────────────────────────────────
-import Home from "./Home"; // ✅ exists
+import Home from "./Home";
 
 // ── Test flow ──────────────────────────────────────────────────────────────
-import MathQuestionlist from "./MathQuestionlist"; // ✅ exists
-import TakeTest from "./TakeTest"; // ✅ exists
-import ResultPage from "./ResultPage"; // ✅ exists
-// import ResultPriview from "./ResultPriview"; // ✅ exists
-import ReviewTest from "./ReviewTest"; // ✅ exists
-import SubmitTest from "./SubmitTest"; // ✅ exists
-// import SubmitTestModule from "./SubmitTestModule"; // ✅ exists
+import MathQuestionlist from "./MathQuestionlist";
+import TakeTest from "./TakeTest";
+import ResultPage from "./ResultPage";
+// import ResultPriview from "./ResultPriview";
+import ReviewTest from "./ReviewTest";
+import SubmitTest from "./SubmitTest";
 
 // ── Other existing pages ───────────────────────────────────────────────────
-import Feedback from "./Feedback"; // ✅ exists
-import ReportAdminPage from "./ReportAdminPage"; // ✅ exists
-import SaveQuestion from "./SaveQuestion"; // ✅ exists
-import SavedPage from "./SavedData"; // ✅ exists
-// import RankPage from "./RankPage"; // ✅ exists
-// import UserFeedback from "./Userfeedback"; // ✅ exists
-import UserTestDataList from "./UserTestDataList"; // ✅ exists
-// import Analysis from "./Analysis"; // ✅ exists
-import CreateTest from "./CreateTest"; // ✅ exists
+import Feedback from "./Feedback";
+import ReportAdminPage from "./ReportAdminPage";
+import SaveQuestion from "./SaveQuestion";
+import SavedPage from "./SavedData";
+import UserTestDataList from "./UserTestDataList";
+import CreateTest from "./CreateTest";
 
-// ── New (created this session) ─────────────────────────────────────────────
-import CoachingPage from "./CoachingPage"; // ✅ NEW — /coaching list + /coaching/:slug detail
+// ── Coaching & Tests ────────────────────────────────────────────────────────
+import CoachingPage from "./CoachingPage";
+import TestDetailPage from "./TestDetailPage"; // NEW
+import TokenTestPage from "./TokenTestPage"; // NEW
 
 const BASE_URL = "http://localhost:80";
 
@@ -582,23 +579,19 @@ const Main = () => {
           }
         />
 
-        {/* Coaching — :slug MUST be before bare /coaching */}
+        {/* ── Tests ────────────────────────────────────────────────────── */}
+        {/* Token link MUST be before :id so "token" isn't treated as an id */}
+        <Route path="/tests/token/:token" element={<TokenTestPage />} />
+        <Route path="/tests/:id" element={<TestDetailPage />} />
+
+        {/* ── Coaching ─────────────────────────────────────────────────── */}
         <Route path="/coaching/:slug" element={<CoachingPage />} />
         <Route path="/coaching" element={<CoachingPage />} />
 
         {/* Public */}
         <Route path="/GiveFeedback" element={<Feedback />} />
-        {/* <Route path="/RankPage" element={<RankPage />} /> */}
 
         {/* Protected */}
-        {/* <Route
-          path="/Analysis"
-          element={
-            <ProtectedRoute>
-              <Analysis />
-            </ProtectedRoute>
-          }
-        /> */}
         <Route
           path="/Saved-Question"
           element={
@@ -631,22 +624,6 @@ const Main = () => {
             </ProtectedRoute>
           }
         />
-        {/* <Route
-          path="/UserFeedback"
-          element={
-            <ProtectedRoute>
-              <UserFeedback />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/SubmitTestModule"
-          element={
-            <ProtectedRoute>
-              <SubmitTestModule />
-            </ProtectedRoute>
-          }
-        /> */}
         <Route
           path="/CreateTest"
           element={
